@@ -58,16 +58,6 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 		die("Could not find an audio stream");
 	}
  
-	// Extract some metadata
-	AVDictionary* metadata = container->metadata;
- 
-	if( metadata != NULL ){
-		const char* artist = av_dict_get(metadata, "artist", NULL, 0)->value;
-		const char* title = av_dict_get(metadata, "title", NULL, 0)->value;
-		fprintf(stdout, "Playing: %s - %s\n", artist, title);
-	}
- 
- 
 	// Find the apropriate codec and open it
 	codec_context = container->streams[stream_id]->codec;
  
