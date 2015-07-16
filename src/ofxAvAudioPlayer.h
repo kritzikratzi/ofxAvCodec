@@ -25,9 +25,12 @@ extern "C"{
 }
 
 //TODO: should/can we move this to cpp file?
-#define AVCODEC_MAX_AUDIO_FRAME_SIZE 192000
-#define AVCODEC_AUDIO_INBUF_SIZE 20480
-#define AVCODEC_AUDIO_REFILL_THRESH 4096
+//ok, be careful with these.
+//with flac files written by audacity it's actually quite easy to cause serious read troubles
+//when using frame=192k, inbuf=20480, thres=4096
+#define AVCODEC_MAX_AUDIO_FRAME_SIZE (192000)
+#define AVCODEC_AUDIO_INBUF_SIZE (20480)
+#define AVCODEC_AUDIO_REFILL_THRESH (4096*3)
 
 class ofxAvAudioPlayer{
 public: 

@@ -185,7 +185,6 @@ void ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 			return;
 		}
 		else{
-			cout << "read packet" << endl; ;
 			decodeNextFrame();
 		}
 	}
@@ -197,14 +196,31 @@ void ofxAvAudioPlayer::decodeNextFrame(){
 		if (!decoded_frame) {
 			if (!(decoded_frame = av_frame_alloc())) {
 				fprintf(stderr, "Could not allocate audio frame\n");
-				exit(1);
+				//exit(1);
+				return;
 			}
-		} else
+		}
+		else{
 			av_frame_unref(decoded_frame);
+		}
+		
 		len = avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &packet);
 		if (len < 0) {
-			fprintf(stderr, "Error while decoding\n");
-			exit(1);
+			// this is primitive, or brutal, or both.
+			// but it can sometimes help recover instead of abandoning ship alltogether.
+			static int num_packets_dropped = 0;
+			fprintf(stderr, "Error while decoding #%d\n", ++num_packets_dropped);
+			//exit(1);
+			// jump to the next packet
+			memmove(inbuf, packet.data, packet.size);
+			packet.data = inbuf;
+			len = fread(packet.data + packet.size, 1,
+						AVCODEC_AUDIO_INBUF_SIZE - packet.size, f);
+			if (len > 0)
+				packet.size += len;
+
+			
+			return;
 		}
 		if (got_frame) {
 			
