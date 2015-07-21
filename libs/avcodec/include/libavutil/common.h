@@ -31,7 +31,15 @@
 #endif
 
 #include <errno.h>
+//hansi: this is not ideal. seems inttypes is missing in vs2012.
+//hope i can find a nicer way to fix this is in the project setup instead.
+//there's also a note in the docs, if this is fixed, fix docs.
+#ifdef _MSC_VER
 #include "inttypes.h"
+#else
+#include <inttypes.h>
+#endif
+
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
