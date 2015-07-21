@@ -32,6 +32,12 @@ Example
 	}
 
 
+Windows
+---
+
+* After using the project generator, add references to the lib files in ofxAvCodec/libs/avcodec/lib/win32 (or win64)
+* Add the linker flag `/SAFESEH:NO`
+
 
 License
 ---

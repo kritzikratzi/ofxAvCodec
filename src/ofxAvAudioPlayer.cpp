@@ -21,7 +21,8 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	decoded_frame = NULL;
 	codec_context = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
-	
+	swr_context = NULL; 
+
 	av_register_all();
 
 	unloadSound();
@@ -227,7 +228,7 @@ void ofxAvAudioPlayer::decodeNextFrame(){
 				
 				if (!swr_context){
 					fprintf(stderr, "Could not allocate resampler context\n");
-					return false;
+					return;
 				}
 				
 			}
