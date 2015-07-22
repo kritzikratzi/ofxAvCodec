@@ -18,11 +18,12 @@ using namespace std;
 
 ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	f = NULL;
+	isLooping = false; 
 	decoded_frame = NULL;
 	codec_context = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 	swr_context = NULL; 
-
+	packet = NULL;
 	av_register_all();
 
 	unloadSound();
@@ -42,7 +43,7 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 		die("Could not find file info");
 	}
  
-	int stream_id = -1;
+	audio_stream_id = -1;
  
 	// To find the first audio stream. This process may not be necessary
 	// if you can gurarantee that the container contains only the desired
@@ -50,17 +51,17 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	int i;
 	for (i = 0; i < container->nb_streams; i++) {
 		if (container->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
-			stream_id = i;
+			audio_stream_id = i;
 			break;
 		}
 	}
  
-	if (stream_id == -1) {
+	if (audio_stream_id == -1) {
 		die("Could not find an audio stream");
 	}
  
 	// Find the apropriate codec and open it
-	codec_context = container->streams[stream_id]->codec;
+	codec_context = container->streams[audio_stream_id]->codec;
  
 	AVCodec* codec = avcodec_find_decoder(codec_context->codec_id);
 //	codec_context = avcodec_alloc_context3(codec);
@@ -78,11 +79,17 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 		return false;
 	}
 	
-	packet.data = inbuf;
-	packet.size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
+	//packet.data = inbuf;
+	//packet.size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
+	packet = new AVPacket();
+	av_init_packet(packet);
+	packet->data = NULL;
+	packet->size = 0;
 
 	// we continue here:
-	decodeNextFrame();
+	decode_next_frame();
+	duration = av_time_to_millis(container->duration);
+
 	
 	swr_context = NULL;
 /*	// convert from planar int16 to interleaved float32
@@ -145,6 +152,11 @@ void ofxAvAudioPlayer::unloadSound(){
 		swr_free(&swr_context);
 		swr_context = NULL;
 	}
+	
+	if( packet ){
+		av_free_packet(packet);
+		packet = NULL;
+	}
 }
 
 void ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
@@ -156,7 +168,7 @@ void ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 	int num_samples_read = 0;
 	
 	if( decoded_frame == NULL ){
-		decodeNextFrame();
+		decode_next_frame();
 	}
 	
 	while( decoded_frame != NULL && max_read_packets > 0 ){
@@ -176,43 +188,58 @@ void ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 			return;
 		}
 		else{
-			decodeNextFrame();
+			decode_next_frame();
 		}
 	}
 }
 
-void ofxAvAudioPlayer::decodeNextFrame(){
-	if(packet.size > 0) {
+/*void ofxAvAudioPlayer::readData(){
+	// this was quite helpful: http://ffmpeg.org/doxygen/trunk/demuxing_decoding_8c-example.html
+	
+	// do we still have data to decode?
+	if( decode_next_frame() ){
+		return true;
+	}
+	else{
+		// nope, grab next frame!
+		if(av_read_frame(container, packet) >= 0){
+			AVPacket orig_pkt = pkt;
+			do {
+				ret = decode_packet(&got_frame, 0);
+				if (ret < 0)
+					break;
+				pkt.data += ret;
+				pkt.size -= ret;
+			} while (pkt.size > 0);
+			av_free_packet(&orig_pkt);
+		}
+	}
+	
+}*/
+
+bool ofxAvAudioPlayer::decode_next_frame(){
+	int res = av_read_frame(container, packet);
+	bool didRead = res >= 0;
+
+	if( didRead ){
 		int got_frame = 0;
 		if (!decoded_frame) {
 			if (!(decoded_frame = av_frame_alloc())) {
 				fprintf(stderr, "Could not allocate audio frame\n");
 				//exit(1);
-				return;
+				return false;
 			}
 		}
 		else{
 			av_frame_unref(decoded_frame);
 		}
 		
-		len = avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &packet);
+		len = avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, packet);
 		if (len < 0) {
-			// this is primitive, or brutal, or both.
-			// but it can sometimes help recover instead of abandoning ship alltogether.
-			static int num_packets_dropped = 0;
-			fprintf(stderr, "Error while decoding #%d\n", ++num_packets_dropped);
-			//exit(1);
-			// jump to the next packet
-			memmove(inbuf, packet.data, packet.size);
-			packet.data = inbuf;
-			len = fread(packet.data + packet.size, 1,
-						AVCODEC_AUDIO_INBUF_SIZE - packet.size, f);
-			if (len > 0)
-				packet.size += len;
-
-			
-			return;
+			// no data
+			return false;
 		}
+		
 		if (got_frame) {
 			
 			if( swr_context == NULL ){
@@ -228,7 +255,7 @@ void ofxAvAudioPlayer::decodeNextFrame(){
 				
 				if (!swr_context){
 					fprintf(stderr, "Could not allocate resampler context\n");
-					return;
+					return false;
 				}
 				
 			}
@@ -245,37 +272,48 @@ void ofxAvAudioPlayer::decodeNextFrame(){
 			decoded_buffer_pos = 0;
 		}
 
-		packet.size -= len;
-		packet.data += len;
-		packet.dts =
-		packet.pts = AV_NOPTS_VALUE;
-
+		packet->size -= len;
+		packet->data += len;
+//		packet->dts =
+//		packet->pts = AV_NOPTS_VALUE;
 		
-		if (packet.size < AVCODEC_AUDIO_REFILL_THRESH) {
-			/* Refill the input buffer, to avoid trying to decode
-			 * incomplete frames. Instead of this, one could also use
-			 * a parser, or use a proper container format through
-			 * libavformat. */
-			memmove(inbuf, packet.data, packet.size);
-			packet.data = inbuf;
-			len = fread(packet.data + packet.size, 1,
-						AVCODEC_AUDIO_INBUF_SIZE - packet.size, f);
-			if (len > 0)
-				packet.size += len;
-		}
+		return true;
 	}
 	else{
+		// no data read...
 		packet_data_size = 0;
 		decoded_buffer_len = 0;
 		decoded_buffer_pos = 0;
-		// seek to beginning!
-		//			av_seek_frame(container,0,0,AVSEEK_FLAG_ANY);
-		//			avcodec_flush_buffers(codec_context);
-		/*int64_t timeBase = (int64_t(codec_context->time_base.num) * AV_TIME_BASE) / int64_t(codec_context->time_base.den);
-		int64_t seekTarget = int64_t(0) * timeBase;
-		if(av_seek_frame(container, -1, seekTarget, AVSEEK_FLAG_ANY) < 0)
-			die("av_seek_frame failed.");*/
-		 //avformat_seek_file(container, -1, INT64_MIN, 0, 0, 0);
-
+		
+		if( isLooping ){
+			setPositionMS(0);
+		}
+		
+		return false;
 	}
+}
+
+unsigned long long ofxAvAudioPlayer::av_time_to_millis( int64_t av_time ){
+	return av_rescale(1000*av_time,(uint64_t)container->streams[audio_stream_id]->time_base.num,container->streams[audio_stream_id]->time_base.den);
+	//alternative:
+	//return av_time*1000*av_q2d(container->streams[audio_stream_id]->time_base);
+}
+
+int64_t ofxAvAudioPlayer::millis_to_av_time( unsigned long long ms ){
+	//TODO: fix conversion
+	int64_t timeBase = (int64_t(codec_context->time_base.num) * AV_TIME_BASE) / int64_t(codec_context->time_base.den);
+	int64_t seekTarget = int64_t(ms) * timeBase;
+	return seekTarget;
+}
+
+
+
+void ofxAvAudioPlayer::setPositionMS(int ms){
+	int64_t seekTarget = millis_to_av_time(ms);
+	av_seek_frame(container,-1,seekTarget,AVSEEK_FLAG_ANY);
+}
+
+int ofxAvAudioPlayer::getPositionMS(){
+	int64_t ts = packet->pts;
+	return av_time_to_millis( ts );
 }

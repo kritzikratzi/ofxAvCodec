@@ -127,17 +127,21 @@ public:
 	
 	bool isLoaded;
 	bool isPlaying;
+	bool isLooping; 
 	unsigned long long duration;
 	
 private:
-	void decodeNextFrame();
+	bool decode_next_frame();
+	unsigned long long av_time_to_millis( int64_t av_time ); 
+	int64_t millis_to_av_time( unsigned long long ms );
 	
 	// i think these could be useful public, rarely, but still ...
-	AVPacket packet;
+	AVPacket * packet;
 	int packet_data_size;
 	int buffer_size; 
 	uint8_t inbuf[AVCODEC_AUDIO_INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
 	int len;
+	int audio_stream_id;
 	
 	FILE *f;
 	// contains audio data, usually decoded as non-interleaved float array
