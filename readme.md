@@ -35,8 +35,18 @@ Example
 Windows
 ---
 
-* After using the project generator, add references to the lib files in ofxAvCodec/libs/avcodec/lib/win32 (or win64)
-* Add the linker flag `/SAFESEH:NO`
+Currently there is still some manual work involved: 
+
+* Use the project generator and add the ofxAvCodec library. Then open if VS
+* Right click your solution, select properties. Make sure to have the *all configurations* option selected. 
+* `Configuration > C++ > General > additional include directories`<br>
+  Remove the directories include\\*, but keep the include directory itself in the list
+* `Configuration > Linker > Extended > SAFESH:NO`<br>
+  set to no (if you cant find the option add `/SAFESEH:NO` as a custom linker flag)
+* Still in VS, navigate to <br>
+  `emptyExample > addons > ofxAvCodec > libs > avcodec`<br>
+  `Right click > Add Elements > Add existing elements` <br>
+  Add all .lib files from addons/ofxAvCodec/libs/avcodec/lib/win32 (or win64)
 
 
 License
