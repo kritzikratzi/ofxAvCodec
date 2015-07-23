@@ -53,13 +53,28 @@ Compiled using the build scripts from [https://github.com/rdp/ffmpeg-windows-bui
 	
 	wget https://raw.github.com/rdp/ffmpeg-windows-build-helpers/master/cross_compile_ffmpeg.sh -O cross_compile_ffmpeg.sh
 	./cross_compile_ffmpeg.sh --build-ffmpeg-shared=y --build-ffmpeg-static=n
-	
-To the question: 
+
+
+Before doing anything, edit the file and look for the `build_ffmpeg()` function. A few lines into the function you can find the configure options used. I modified them as follows: 
+
+	  #original config options: 
+	  #config_options="--arch=$arch --target-os=mingw32 --cross-prefix=$cross_prefix --pkg-config=pkg-config --enable-gpl --enable-libsoxr --enable-fontconfig --enable-libass --enable-libutvideo --enable-libbluray --enable-iconv --enable-libtwolame --extra-cflags=-DLIBTWOLAME_STATIC --enable-libzvbi --enable-libcaca --enable-libmodplug --extra-libs=-lstdc++ --extra-libs=-lpng --enable-libvidstab --enable-libx265 --enable-decklink --extra-libs=-loleaut32 --enable-libx264 --enable-libxvid --enable-libmp3lame --enable-version3 --enable-zlib --enable-librtmp --enable-libvorbis --enable-libtheora --enable-libspeex --enable-libopenjpeg --enable-gnutls --enable-libgsm --enable-libfreetype --enable-libopus --disable-w32threads --enable-frei0r --enable-filter=frei0r --enable-libvo-aacenc --enable-bzlib --enable-libxavs --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libvo-amrwbenc --enable-libschroedinger --enable-libvpx --enable-libilbc --enable-libwavpack --enable-libwebp --enable-libgme --enable-dxva2 --enable-libdcadec --enable-avisynth $extra_configure_opts" 
+	  # new config options: 
+	  config_options="--arch=$arch --target-os=mingw32 --cross-prefix=$cross_prefix --pkg-config=pkg-config --extra-libs=-lstdc++ --disable-w32threads $extra_configure_opts"
+	  
+
+Now you're ready to run the script. To the question: 
 `Would you like to include non-free (non GPL compatible) libraries`, answer no (N). 
 
-The resulting dll files are in <br>
+The script takes a while (1-3 hours). The resulting dll files are in <br>
 `sandbox/x86_64/ffmpeg_git_shared.installed/bin/` <br>
 `ffmpeg_git_shared.installed/bin/`
+
+Run ffmpeg.exe to verify that the correct configure options where in fact used. 
+
+
+<i>Sometimes the script fails because sourceforge is having serious downtime issues. I found that it's usually easy to give the script a hand by downloading the correct version of the dependency yourself, then place it in the win32 and x86_64 folders. (or just do a manual git clone if you find a mirror of the code).</i>
+
 
 
 
