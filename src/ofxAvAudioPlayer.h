@@ -67,7 +67,7 @@ public:
 	
 	/// \brief Sets playback volume.
 	/// \param vol range is 0 to 1.
-	//void setVolume(float vol);
+	void setVolume(float vol);
 	
 	/// \brief Sets stereo pan.
 	/// \param pan range is -1 to 1 (-1 is full left, 1 is full right).
@@ -101,7 +101,7 @@ public:
 	/// \return playhead position in milliseconds.
 	int getPositionMS();
 	
-	/// \brief Gets position of the playhead.
+	/// \brief Gets position of the playhead (0..1).
 	/// \return playhead position as a float between 0 and 1.
 	float getPosition();
 	
@@ -129,6 +129,7 @@ public:
 	bool isPlaying;
 	bool isLooping; 
 	unsigned long long duration;
+	float volume; 
 	
 private:
 	bool decode_next_frame();
@@ -154,6 +155,7 @@ private:
 	int64_t output_channel_layout;
 	int output_num_channels;
 	
+	int64_t next_seekTarget;
 	
 	// contains audio data, always in interleaved float format
 	int decoded_buffer_pos;

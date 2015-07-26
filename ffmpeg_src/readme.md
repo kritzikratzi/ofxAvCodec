@@ -75,7 +75,32 @@ Run ffmpeg.exe to verify that the correct configure options where in fact used.
 
 <i>Sometimes the script fails because sourceforge is having serious downtime issues. I found that it's usually easy to give the script a hand by downloading the correct version of the dependency yourself, then place it in the win32 and x86_64 folders. (or just do a manual git clone if you find a mirror of the code).</i>
 
+Compiling for Linux using Ubuntu
+---
 
+This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu](ffmpeg guide for Ubuntu). The following steps assume a 64bit Ubuntu installation. 
+
+
+	sudo apt-get update
+	
+	sudo apt-get -y --force-yes install git autoconf automake build-essential libass-dev \
+		libfreetype6-dev libsdl1.2-dev libtheora-dev libtool libva-dev libvdpau-dev\
+		libvorbis-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev pkg-config \
+		texi2html zlib1g-dev gcc-multilib libc6-i386
+	
+	git clone git://source.ffmpeg.org/ffmpeg.git
+	cd ffmpeg
+	# check out specific revision if you want
+	./configure  --prefix=`pwd`/dist/x86_64/ --enable-pic --enable-shared
+	make && make install
+	
+	# now cross compile for 32 bit
+	make clean 
+	./configure  --prefix=`pwd`/dist/i386/ --enable-pic --enable-shared --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386
+	make && make install
+	
+	
+Good job! If all goes well you have two directories: `dist/x86_64` and `dist/i386`
 
 
 Special Licensing Considerations

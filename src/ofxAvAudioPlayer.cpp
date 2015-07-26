@@ -11,12 +11,19 @@
 // https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/decoding_encoding.c
 
 #include "ofxAvAudioPlayer.h"
+#include "ofMain.h"
 
 using namespace std;
 
 #define die(msg) cerr << msg << endl; return false;
 
 ofxAvAudioPlayer::ofxAvAudioPlayer(){
+	// default audio settings
+	output_channel_layout = av_get_default_channel_layout(2);
+	output_sample_rate = 44100;
+	output_num_channels = 2;
+	volume = 1;
+	
 	f = NULL;
 	isLooping = false; 
 	decoded_frame = NULL;
@@ -32,7 +39,8 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	unloadSound();
 	
-	const char * input_filename = fileName.c_str();
+	string fileNameAbs = ofToDataPath(fileName,true);
+	const char * input_filename = fileNameAbs.c_str();
 	// the first finds the right codec, following  https://blinkingblip.wordpress.com/2011/10/08/decoding-and-playing-an-audio-stream-using-libavcodec-libavformat-and-libao/
 	container = 0;
 	if (avformat_open_input(&container, input_filename, NULL, NULL) < 0) {
@@ -64,9 +72,6 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	codec_context = container->streams[audio_stream_id]->codec;
  
 	AVCodec* codec = avcodec_find_decoder(codec_context->codec_id);
-//	codec_context = avcodec_alloc_context3(codec);
-//	codec_context->request_channels = 2;
-//	codec_context->request_channel_layout = AV_CH_STEREO_LEFT|AV_CH_STEREO_RIGHT;
 	if (avcodec_open2(codec_context, codec,NULL)) {
 		die("Could not find open the needed codec");
 	}
@@ -88,31 +93,12 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 
 	// we continue here:
 	decode_next_frame();
-	duration = av_time_to_millis(container->duration);
+	duration = av_time_to_millis(container->streams[audio_stream_id]->duration);
 
 	
 	swr_context = NULL;
-/*	// convert from planar int16 to interleaved float32
-	// also change sample rate from 8kHz to 16kHz.
-	const int16_t in[2][4] = {{30000,1,2,3}, {10, 9, 8, 7}};
-	//const uint8_t * in_ptr[2] = {(const uint8_t*)in[0],(const uint8_t*)in[0]};
-	const uint8_t * in_ptr[2]={(const uint8_t*)in,(const uint8_t*)in[1]};
-	cout << ((int16_t**)in_ptr)[0][0] << endl;
-	cout << (int)in_ptr[1][1] << endl;
-	float out[16] = {0};
-	uint8_t * out_ptr = (uint8_t*)out;
-	
-	swr_context = swr_alloc_set_opts(NULL,
-						AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16P, 8000,
-						AV_CH_LAYOUT_MONO, AV_SAMPLE_FMT_FLTP,  8000,
-						0, NULL);
-	int res = swr_init(swr_context);
-	res = swr_convert(swr_context, &out_ptr, 8, in_ptr, 4);
-	cout << out << endl;
-	die("DONE");*/
-	
-
 	isLoaded = true;
+	isPlaying = true;
 
 	return true;
 }
@@ -129,9 +115,11 @@ bool ofxAvAudioPlayer::setupAudioOut( int numChannels, int sampleRate ){
 void ofxAvAudioPlayer::unloadSound(){
 	len = 0;
 	isLoaded = false;
+	isPlaying = false;
 	packet_data_size = 0;
 	decoded_buffer_pos = 0;
 	decoded_buffer_len = 0;
+	next_seekTarget = -1;
 
 	
 	if( f ){
@@ -162,6 +150,17 @@ void ofxAvAudioPlayer::unloadSound(){
 void ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 	if( !isLoaded ){ return; }
 	
+	if( next_seekTarget >= 0 ){
+		//av_seek_frame(container,-1,next_seekTarget,AVSEEK_FLAG_ANY);
+		avformat_seek_file(container,audio_stream_id,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_ANY);
+		next_seekTarget = -1;
+		avcodec_flush_buffers(codec_context);
+		decode_next_frame();
+	}
+	
+	if( !isPlaying ){ return; }
+	
+	
 	int max_read_packets = 2;
 	if( decoded_frame && decoded_frame);
 	// number of samples read per channel (up to bufferSize)
@@ -178,7 +177,16 @@ void ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 		int available_samples = decoded_buffer_len - decoded_buffer_pos;
 		if( missing_samples > 0 && available_samples > 0 ){
 			int samples = min( missing_samples, available_samples );
-			memcpy(output+num_samples_read, decoded_buffer+decoded_buffer_pos, samples*sizeof(float) );
+			
+			if( volume != 0 ){
+				memcpy(output+num_samples_read, decoded_buffer+decoded_buffer_pos, samples*sizeof(float) );
+			}
+			
+			if( volume != 1 && volume != 0 ){
+				for( int i = 0; i < samples; i++ ){
+					output[i+num_samples_read] *= volume;
+				}
+			}
 			
 			decoded_buffer_pos += samples;
 			num_samples_read += samples;
@@ -284,9 +292,13 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 		packet_data_size = 0;
 		decoded_buffer_len = 0;
 		decoded_buffer_pos = 0;
-		
 		if( isLooping ){
-			setPositionMS(0);
+			avformat_seek_file(container,audio_stream_id,0,0,0,AVSEEK_FLAG_ANY);
+			avcodec_flush_buffers(codec_context);
+			decode_next_frame();
+		}
+		else{
+			isPlaying = false;
 		}
 		
 		return false;
@@ -301,19 +313,44 @@ unsigned long long ofxAvAudioPlayer::av_time_to_millis( int64_t av_time ){
 
 int64_t ofxAvAudioPlayer::millis_to_av_time( unsigned long long ms ){
 	//TODO: fix conversion
-	int64_t timeBase = (int64_t(codec_context->time_base.num) * AV_TIME_BASE) / int64_t(codec_context->time_base.den);
-	int64_t seekTarget = int64_t(ms) * timeBase;
-	return seekTarget;
+/*	int64_t timeBase = (int64_t(codec_context->time_base.num) * AV_TIME_BASE) / int64_t(codec_context->time_base.den);
+	int64_t seekTarget = int64_t(ms) / timeBase;*/
+	return av_rescale(ms,container->streams[audio_stream_id]->time_base.den,(uint64_t)container->streams[audio_stream_id]->time_base.num)/1000;
 }
 
 
 
 void ofxAvAudioPlayer::setPositionMS(int ms){
-	int64_t seekTarget = millis_to_av_time(ms);
-	av_seek_frame(container,-1,seekTarget,AVSEEK_FLAG_ANY);
+	next_seekTarget = millis_to_av_time(ms);
 }
 
 int ofxAvAudioPlayer::getPositionMS(){
 	int64_t ts = packet->pts;
 	return av_time_to_millis( ts );
+}
+
+float ofxAvAudioPlayer::getPosition(){
+	return duration == 0? 0 : (getPositionMS()/(float)duration);
+}
+
+void ofxAvAudioPlayer::setPosition(float percent){
+	if(duration>0) setPositionMS(percent*duration);
+}
+
+void ofxAvAudioPlayer::stop(){
+	isPlaying =false;
+}
+
+void ofxAvAudioPlayer::play(){
+	if( isLoaded ){
+		isPlaying = true;
+	}
+}
+
+void ofxAvAudioPlayer::setLoop(bool loop){
+	isLooping = loop;
+}
+
+void ofxAvAudioPlayer::setVolume(float vol){
+	this->volume = vol;
 }
