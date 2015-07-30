@@ -24,7 +24,7 @@ Compiling on Mac OS
 ---
 The included binaries were compiled with 
 
-	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared
+	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs
 	
 This will create 64bit libraries. 
 For 32bit add these flags (if you built for 64bit earlier you must run a `make clean` first): 
@@ -34,6 +34,17 @@ For 32bit add these flags (if you built for 64bit earlier you must run a `make c
 	
 Btw: Directly after running configure you get a neat list of all enabled components like codecs, muxer, and other things I've never heard of. 
 
+
+|Flag|Description|
+|----|-----------|
+|``--prefix=`pwd`/dist/``|Sets the output path to the dist folder|
+|`--enable-pic`|not sure|
+|`--enable-shared`|compile as shared libraries (disables static libs)|
+|`--shlibdir="@executable_path"`|tells each dylib to look for other dylibs in the same folder (i think)|
+|`--disable-indevs`|Disables input devices like qtkit. I added this flag to get rid of the shared lib dependency to jack audio|
+
+
+Anyways, when you're done with the configuration run 
 
 	make && make install
 	

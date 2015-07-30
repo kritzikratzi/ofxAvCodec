@@ -1,5 +1,5 @@
 ffmpeg_src/ffmpeg
-
+libs/avcodec/lib
 # Created by https://www.gitignore.io
 
 ### Xcode ###
