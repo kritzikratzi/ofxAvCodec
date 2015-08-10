@@ -15,7 +15,7 @@
 
 using namespace std;
 
-#define die(msg) cerr << msg << endl; return false;
+#define die(msg) { unloadSound(); cerr << msg << endl; return false; }
 
 ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	// default audio settings
@@ -325,6 +325,7 @@ void ofxAvAudioPlayer::setPositionMS(int ms){
 }
 
 int ofxAvAudioPlayer::getPositionMS(){
+	if( !isLoaded ) return 0;
 	int64_t ts = packet->pts;
 	return av_time_to_millis( ts );
 }
