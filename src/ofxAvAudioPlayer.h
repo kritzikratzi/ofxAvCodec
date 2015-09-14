@@ -13,6 +13,7 @@
 #include <iostream>
 
 #include <math.h>
+#include <map>
 
 extern "C"{
 	#include <libavcodec/avcodec.h>
@@ -130,6 +131,11 @@ public:
 	bool isLooping; 
 	unsigned long long duration;
 	float volume; 
+
+	std::string getMetaData( std::string key );
+	std::map<std::string,std::string> getMetaData();
+
+	static std::map<std::string,std::string> readMetaData( std::string filename );
 	
 private:
 	bool decode_next_frame();

@@ -355,3 +355,33 @@ void ofxAvAudioPlayer::setLoop(bool loop){
 void ofxAvAudioPlayer::setVolume(float vol){
 	this->volume = vol;
 }
+
+string ofxAvAudioPlayer::getMetaData( string key ){
+	if( container != NULL ){
+		AVDictionaryEntry * entry = av_dict_get(container->metadata, key.c_str(), NULL, 0);
+		if( entry == NULL ) return "";
+		else return string(entry->value);
+	}
+	else{
+		return "";
+	}
+}
+
+map<string,string> ofxAvAudioPlayer::getMetaData(){
+	map<string,string> meta;
+	AVDictionary * d = container->metadata;
+	AVDictionaryEntry *t = NULL;
+	while ((t = av_dict_get(d, "", t, AV_DICT_IGNORE_SUFFIX))!=0){
+		meta[string(t->key)] = string(t->value);
+	}
+	
+	return meta; 
+}
+
+static std::map<string,string> readMetaData( std::string filename ){
+	ofxAvAudioPlayer player;
+	player.loadSound(filename);
+	map<string,string> meta = player.getMetaData();
+	player.unloadSound();
+	return meta;
+}
