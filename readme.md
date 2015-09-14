@@ -10,7 +10,7 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 Advantages over the built in soundStreamPlayers: it gives you access to the raw buffer data. (well, semiraw. there is some resampling done first). 
 
 
-Example
+Example Read
 ---
 
 	class ofApp : public ofBaseApp{
@@ -31,6 +31,28 @@ Example
 		player.audioOut(output, bufferSize, nChannels); 
 	}
 
+
+Example Write
+---
+
+	ofxAvAudioWriter writer;
+	writer.setup(44100, 1); // 44.1kHz, 1 channel
+	writer.open(ofToDataPath("testo.wav"), "wav" );
+
+	int N = 100;
+	float * buffer = new float[N];
+	int num = 0;
+	
+	// write roughly 3000 samples in chunks of size N
+	while( num < 3000 ){
+		for( int i = 0; i < N; i++ ){
+			buffer[i] = sinf(num*2*3.1415*400/44100.0);
+			num ++;
+		}
+		writer.write(buffer, N);
+	}
+	cout << "wrote " << num << " samples" << endl;
+	writer.close();
 
 Windows
 ---
