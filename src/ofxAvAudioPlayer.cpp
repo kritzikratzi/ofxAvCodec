@@ -135,7 +135,6 @@ void ofxAvAudioPlayer::unloadSound(){
 		av_frame_free(&decoded_frame);
 		decoded_frame = NULL;
 	}
-	
 	if( swr_context ){
 		swr_free(&swr_context);
 		swr_context = NULL;
@@ -356,7 +355,7 @@ void ofxAvAudioPlayer::setVolume(float vol){
 	this->volume = vol;
 }
 
-string ofxAvAudioPlayer::getMetaData( string key ){
+string ofxAvAudioPlayer::getMetadata( string key ){
 	if( container != NULL ){
 		AVDictionaryEntry * entry = av_dict_get(container->metadata, key.c_str(), NULL, 0);
 		if( entry == NULL ) return "";
@@ -367,7 +366,7 @@ string ofxAvAudioPlayer::getMetaData( string key ){
 	}
 }
 
-map<string,string> ofxAvAudioPlayer::getMetaData(){
+map<string,string> ofxAvAudioPlayer::getMetadata(){
 	map<string,string> meta;
 	AVDictionary * d = container->metadata;
 	AVDictionaryEntry *t = NULL;
@@ -378,10 +377,10 @@ map<string,string> ofxAvAudioPlayer::getMetaData(){
 	return meta; 
 }
 
-static std::map<string,string> readMetaData( std::string filename ){
+static std::map<string,string> readMetadata( std::string filename ){
 	ofxAvAudioPlayer player;
 	player.loadSound(filename);
-	map<string,string> meta = player.getMetaData();
+	map<string,string> meta = player.getMetadata();
 	player.unloadSound();
 	return meta;
 }

@@ -67,6 +67,9 @@ public:
 	int in_channel_layout;
 	std::map<std::string,std::string> meta;
 	
+	// soon (tm!)
+	//bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
+	
 private:
 	SwrContext * swr_context;
 	AVFormatContext *ofmt_ctx;

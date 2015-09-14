@@ -132,10 +132,10 @@ public:
 	unsigned long long duration;
 	float volume; 
 
-	std::string getMetaData( std::string key );
-	std::map<std::string,std::string> getMetaData();
+	std::string getMetadata( std::string key );
+	std::map<std::string,std::string> getMetadata();
 
-	static std::map<std::string,std::string> readMetaData( std::string filename );
+	static std::map<std::string,std::string> readMetadata( std::string filename );
 	
 private:
 	bool decode_next_frame();

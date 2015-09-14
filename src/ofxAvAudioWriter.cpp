@@ -198,7 +198,7 @@ void ofxAvAudioWriter::write(float *src, int numFrames){
 		
 		//memcpy(samples+sizeof(float)*frame_pointer*in_num_channels, src, to_copy);
 		/* resample to desired rate */ //TODO: sizeof(uint16_t) depends on format!!!!
-		uint8_t * sw_dest = (uint8_t*)(samples+sizeof(uint16_t)*frame_pointer*in_num_channels);
+		uint8_t * sw_dest = (uint8_t*)(samples+frame_pointer*in_num_channels);
 		const uint8_t * sw_src = (uint8_t*)src;
 		int samples_converted = swr_convert(swr_context,
 											&sw_dest, to_copy,
@@ -292,7 +292,7 @@ bye:
 	}
 
 	if( ofmt_ctx ){
-		avcodec_close(ofmt_ctx->streams[0]->codec);
+		//avcodec_close(ofmt_ctx->streams[0]->codec);
 		avformat_free_context(ofmt_ctx);
 		c = NULL;
 		ofmt_ctx = NULL;
@@ -316,6 +316,10 @@ AVCodecID ofxAvAudioWriter::codecForExtension( std::string ext ){
 }
 
 
+/*
+bool ofxAvAudioWriter::updateMetadata(std::string filename, std::map<std::string, std::string> newMetadata){
+	
+}*/
 
 
 
@@ -358,8 +362,11 @@ static int select_channel_layout(AVCodec *codec, int preferred)
 	uint64_t best_ch_layout = 0;
 	int best_nb_channels   = 0;
 	
-	if (!codec->channel_layouts)
-		return AV_CH_LAYOUT_STEREO;
+//	if (!codec->channel_layouts)
+//		return AV_CH_LAYOUT_STEREO;
+	
+	// lets just hope that the codec can do what we want!
+	if( !codec->channel_layouts) return preferred;
 	
 	p = codec->channel_layouts;
 	while (*p) {
