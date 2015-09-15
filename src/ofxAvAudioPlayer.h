@@ -135,7 +135,14 @@ public:
 	std::string getMetadata( std::string key );
 	std::map<std::string,std::string> getMetadata();
 
+	// read metadata of a file
 	static std::map<std::string,std::string> readMetadata( std::string filename );
+
+	// updates the metadata.
+	// the entire file has to be read and written during the process, so this is not fast!
+	// however, the file will not be reencoded, so there is no quality loss.
+	static bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
+	
 	
 private:
 	bool decode_next_frame();

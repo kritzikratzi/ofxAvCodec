@@ -9,6 +9,8 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 
 Advantages over the built in soundStreamPlayers: it gives you access to the raw buffer data. (well, semiraw. there is some resampling done first). 
 
+Downsides: licensing is ... complicated. 
+
 
 Example Read
 ---
@@ -25,6 +27,7 @@ Example Read
 		soundStream.setup(this, 2, 0, 44100, 512, 4);
 		player.setupAudioOut(2, 44100); // required to resample properly
 		player.loadSound(ofToDataPath("testo.flac"));
+		map<string,string> metadata = player.getMetadata(); 
 	}
 
 	void ofApp::audioOut( float * output, int bufferSize, int nChannels ){
@@ -37,8 +40,9 @@ Example Write
 
 	ofxAvAudioWriter writer;
 	writer.setup(44100, 1); // 44.1kHz, 1 channel
+	writer.addMeta("title", "my cool song"); 
 	writer.open(ofToDataPath("testo.wav"), "wav" );
-
+	
 	int N = 100;
 	float * buffer = new float[N];
 	int num = 0;
@@ -53,6 +57,19 @@ Example Write
 	}
 	cout << "wrote " << num << " samples" << endl;
 	writer.close();
+
+
+Metadata Read/Update
+---
+
+	// Read metadata without reading the file
+	map<string,string> meta = ofxAvAudioPlayer::readMetadata("myfile.wav"); 
+	
+	// Write metadata without re-encoding the file 
+	// this still reads and writes the entire file though! 
+	map<string,string> myMeta; 
+	myMeta["title"] = "careless whisper"; 
+	ofxAvAudioPlayer::updateMetadata("myfile.wav", myMeta ); 
 
 Windows
 ---

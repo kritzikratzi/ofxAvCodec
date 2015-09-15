@@ -8,7 +8,6 @@
 
 #include "ofxAvAudioWriter.h"
 #include <algorithm>
-#include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
 
 using namespace std;
@@ -45,7 +44,7 @@ bool ofxAvAudioWriter::open(string filename, string formatExtension, int sampleR
 
 bool ofxAvAudioWriter::open(string filename, AVCodecID codec_id, int requestedOutSampleRate, int requestedOutNumChannels ){
 	file_codec = codec_id;
-	
+	filename = ofToDataPath(filename, true); 
 	
 	int i, j, k, ret, got_output;
 	float t, tincr;
@@ -315,169 +314,6 @@ AVCodecID ofxAvAudioWriter::codecForExtension( std::string ext ){
 	else if( ext == "ogg" ) return AV_CODEC_ID_VORBIS;
 	else return AV_CODEC_ID_NONE;
 }
-
-
-
-bool ofxAvAudioWriter::updateMetadata(std::string filename, std::map<std::string, std::string> newMetadata){
-	string fileNameAbs = ofToDataPath(filename,true);
-	const char * input_filename = fileNameAbs.c_str();
-	AVFormatContext* container = 0;
-	if (avformat_open_input(&container, input_filename, NULL, NULL) < 0) {
-		cerr << ("Could not open file") << endl;
-		return false;
-	}
- 
-	if (avformat_find_stream_info(container,NULL) < 0) {
-		cerr << ("Could not find file info") << endl;
-		return false;
-	}
- 
-	int audio_stream_id = -1;
- 
-	// To find the first audio stream. This process may not be necessary
-	// if you can gurarantee that the container contains only the desired
-	// audio stream
-	int i;
-	for (i = 0; i < container->nb_streams; i++) {
-		if (container->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
-			audio_stream_id = i;
-			break;
-		}
-	}
- 
-	if (audio_stream_id == -1) {
-		cerr << ("Could not find an audio stream") << endl;
-		return false;
-	}
- 
-	// Find the apropriate codec and open it
-	AVCodecContext * codec_context = container->streams[audio_stream_id]->codec;
- 
-	AVCodec* codec = avcodec_find_decoder(codec_context->codec_id);
-	if (avcodec_open2(codec_context, codec,NULL)) {
-		cerr << ("Could not find open the needed codec") << endl;
-		return false;
-	}
-	
-	// from here on it's mostly following
-	// https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/decoding_encoding.c
-	FILE * f = fopen(input_filename, "rb");
-	if (!f) {
-		fprintf(stderr, "Could not open %s\n", input_filename);
-		return false;
-	}
-	
-	
-	// ---------------------------------------------
-	// OK OK OK
-	// WE HAVE AN OPEN FILE!!!!
-	// now let's create the output file ...
-	// ---------------------------------------------
-	
-	AVFormatContext *ofmt_ctx = NULL;
-	// todo: improve this crap!
-	string destFile = ofToDataPath("__" +filename);
-	avformat_alloc_output_context2(&ofmt_ctx, NULL, NULL, destFile.c_str());
-	if (!ofmt_ctx) {
-		av_log(NULL, AV_LOG_ERROR, "Could not create output context\n");
-		return false;
-	}
-	
-	/* find the encoder */
-	AVCodec * out_codec = avcodec_find_encoder(codec->id);
-	if (!out_codec) {
-		cerr << ("codec not found") << endl;
-		return false;
-	}
-	
-	AVStream * out_stream = avformat_new_stream(ofmt_ctx, out_codec);
-	if (!out_stream) {
-		cerr << ("Failed allocating output stream\n") << endl;
-		return false;
-	}
-	
-	AVCodecContext * out_c = out_stream->codec;
-	// old!
-	if (!out_c) {
-		cerr << ("could not allocate audio codec context") << endl;
-		return false;
-	}
-	
-	/* check that the encoder supports s16 pcm input */
-	// TODO: find sample fmt automatically !
-	out_c->sample_fmt = AV_SAMPLE_FMT_S16;
-	/* select other audio parameters supported by the encoder */
-	out_c->sample_rate = codec_context->sample_rate;
-	out_c->channel_layout = codec_context->channel_layout;
-	out_c->channels       = codec_context->channels;
-	out_c->frame_size = codec_context->frame_size;
-	
-	/* open it */
-	if (avcodec_open2(out_c, out_codec, NULL) < 0) {
-		cerr << ("could not open codec") << endl;
-	}
-	
-	
-	
-	if (!(ofmt_ctx->oformat->flags & AVFMT_NOFILE)) {
-		int ret = avio_open(&ofmt_ctx->pb, destFile.c_str(), AVIO_FLAG_WRITE);
-		if (ret < 0) {
-			cerr << ("Could not open output file") << endl;
-		}
-	}
-	
-	/* init muxer, write output file header */
-	//TODO: put metadata here!
-	AVDictionary *d = NULL;
-	map<string,string>::iterator it = newMetadata.begin();
-	while( it != newMetadata.end() ){
-		av_dict_set(&d, (*it).first.c_str(), (*it).second.c_str(), 0);
-		++it;
-	}
-	
-	
-	ofmt_ctx->metadata = d;
-	int ret = avformat_write_header(ofmt_ctx, NULL);
-	// av_dict_free(&d);
-	if (ret < 0) {
-		av_log(NULL, AV_LOG_ERROR, "Error occurred when opening output file\n");
-		return ret;
-	}
-	
-	
-	
-	// ---------------------------------------------
-	// OK, We have all we need, really. let's start this party!
-	// ---------------------------------------------
-
-	//packet.data = inbuf;
-	//packet.size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
-	AVPacket * packet = new AVPacket();
-	av_init_packet(packet);
-	packet->data = NULL;
-	packet->size = 0;
-	
-	// read a packet (frame? who the fuck knows)
-
-	while(true){
-		int res = av_read_frame(container, packet);
-		if( res >= 0 ){
-			av_write_frame(ofmt_ctx, packet);
-		}
-		else{
-			break;
-		}
-	}
-	av_write_trailer(ofmt_ctx);
-	
-	//TODO: cleanup!
-	return true;
-	
-die:
-	//TODO: release resources
-	return false;
-}
-
 
 
 /* check that a given sample format is supported by the encoder */

@@ -68,11 +68,6 @@ public:
 	// tries to find a codec id from a file extension
 	static AVCodecID codecForExtension( std::string extension );
 	
-	// updates the metadata.
-	// the entire file has to be read and written during the process, so this is not fast!
-	// however, the file will not be reencoded, so there is no quality loss.
-	static bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
-	
 private:
 	SwrContext * swr_context;
 	AVFormatContext *ofmt_ctx;
