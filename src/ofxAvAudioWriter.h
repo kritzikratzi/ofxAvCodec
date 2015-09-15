@@ -52,8 +52,6 @@ public:
 	// ie, numFrames = 4, numChannels = 2, samples = {l1, r1, l2, r2, l3, r3, l4, r4}
 	void write( float * samples, int numFrames );
 	
-	// tries to find a codec id from a file extension
-	static AVCodecID codecForExtension( std::string extension ); 
 	void close();
 	
 	// sample rate and num channels used by the codec
@@ -67,8 +65,13 @@ public:
 	int in_channel_layout;
 	std::map<std::string,std::string> meta;
 	
-	// soon (tm!)
-	//bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
+	// tries to find a codec id from a file extension
+	static AVCodecID codecForExtension( std::string extension );
+	
+	// updates the metadata.
+	// the entire file has to be read and written during the process, so this is not fast!
+	// however, the file will not be reencoded, so there is no quality loss.
+	static bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
 	
 private:
 	SwrContext * swr_context;
