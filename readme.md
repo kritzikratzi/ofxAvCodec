@@ -15,6 +15,9 @@ Downsides: licensing is ... complicated.
 Example Read
 ---
 
+
+`ofxAvAudioPlayer` can read an audio file and prepare it for playback through openframeworks audio callback. Before loading the sound you can tell the player your preferred number of output channels and samplerate, all the resampling and channel conversions are done automatically. 
+
 	class ofApp : public ofBaseApp{
 		// ...
 		ofSoundStream soundStream;
@@ -37,6 +40,7 @@ Example Read
 
 Example Write
 ---
+`ofxAvAudioWriter` needs to be set up with a sample rate and number of channels. After that you can open the file and start writing samples into it. Don't forget to close the file when you are done! 
 
 	ofxAvAudioWriter writer;
 	writer.setup(44100, 1); // 44.1kHz, 1 channel
@@ -62,14 +66,15 @@ Example Write
 Metadata Read/Update
 ---
 
+
 	// Read metadata without reading the file
-	map<string,string> meta = ofxAvAudioPlayer::readMetadata("myfile.wav"); 
+	map<string,string> meta = ofxAvMetadata::read("myfile.wav"); 
 	
 	// Write metadata without re-encoding the file 
 	// this still reads and writes the entire file though! 
 	map<string,string> myMeta; 
 	myMeta["title"] = "careless whisper"; 
-	ofxAvAudioPlayer::updateMetadata("myfile.wav", myMeta ); 
+	ofxAvMetadata::update("myfile.wav", myMeta ); 
 
 Windows
 ---

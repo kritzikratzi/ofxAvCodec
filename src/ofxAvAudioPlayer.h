@@ -42,7 +42,8 @@ public:
 	// call this first after create the player
 	bool setupAudioOut( int numChannels, int sampleRate );
 	// call this from the audioOut callback.
-	void audioOut( float * output, int bufferSize, int nChannels );
+	// returns the number of frames (0...bufferSize) that were played. 
+	int audioOut( float * output, int bufferSize, int nChannels );
 	
 	// ok, so ... it _would_ be nice if this was mostly compatible with the OF sound players.
 	// for now i've copied everything in here, if things go well
@@ -135,15 +136,6 @@ public:
 	std::string getMetadata( std::string key );
 	std::map<std::string,std::string> getMetadata();
 
-	// read metadata of a file
-	static std::map<std::string,std::string> readMetadata( std::string filename );
-
-	// updates the metadata.
-	// the entire file has to be read and written during the process, so this is not fast!
-	// however, the file will not be reencoded, so there is no quality loss.
-	static bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
-	
-	
 private:
 	bool decode_next_frame();
 	unsigned long long av_time_to_millis( int64_t av_time ); 
