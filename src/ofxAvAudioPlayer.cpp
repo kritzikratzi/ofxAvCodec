@@ -25,7 +25,8 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	volume = 1;
 	
 	f = NULL;
-	isLooping = false; 
+	isLooping = false;
+	container = NULL; 
 	decoded_frame = NULL;
 	codec_context = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
