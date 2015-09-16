@@ -149,7 +149,6 @@ private:
 	int len;
 	int audio_stream_id;
 	
-	FILE *f;
 	// contains audio data, usually decoded as non-interleaved float array
 	AVFrame *decoded_frame;
 	AVCodecContext* codec_context;

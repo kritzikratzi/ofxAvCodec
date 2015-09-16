@@ -24,7 +24,6 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	output_num_channels = 2;
 	volume = 1;
 	
-	f = NULL;
 	isLooping = false;
 	container = NULL; 
 	decoded_frame = NULL;
@@ -77,15 +76,8 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 		die("Could not find open the needed codec");
 	}
 	
-	// TODO: this is nonsense, remove the file!
 	// from here on it's mostly following
 	// https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/decoding_encoding.c
-	f = fopen(input_filename, "rb");
-	if (!f) {
-		fprintf(stderr, "Could not open %s\n", input_filename);
-		return false;
-	}
-	
 	//packet.data = inbuf;
 	//packet.size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
 	packet = new AVPacket();
@@ -93,14 +85,13 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	packet->data = NULL;
 	packet->size = 0;
 
-	// we continue here:
-	decode_next_frame();
-	duration = av_time_to_millis(container->streams[audio_stream_id]->duration);
-
-	
 	swr_context = NULL;
 	isLoaded = true;
 	isPlaying = true;
+	
+	// we continue here:
+	decode_next_frame();
+	//duration = av_time_to_millis(container->streams[audio_stream_id]->duration);
 
 	return true;
 }
@@ -124,32 +115,30 @@ void ofxAvAudioPlayer::unloadSound(){
 	next_seekTarget = -1;
 
 	
-	if( f ){
-		fclose(f);
-		f = NULL; 
+	if( packet ){
+		av_free_packet(packet);
+		packet = NULL;
 	}
-	if( container ){
-		avformat_free_context(container);
-		container = NULL;
-	}
-	if( codec_context ){
-		//avcodec_close(codec_context);
-		//av_free(codec_context);
-		codec_context = NULL;
-	}
+	
 	if( decoded_frame ){
+		av_frame_unref(decoded_frame);
 		av_frame_free(&decoded_frame);
 		decoded_frame = NULL;
 	}
+	
+	if( container ){
+		avcodec_close(codec_context);
+		avformat_close_input(&container);
+		avformat_free_context(container);
+		container = NULL;
+		codec_context = NULL;
+	}
+	
 	if( swr_context ){
 		swr_free(&swr_context);
 		swr_context = NULL;
 	}
 	
-	if( packet ){
-		av_free_packet(packet);
-		packet = NULL;
-	}
 }
 
 int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
@@ -208,30 +197,6 @@ int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 	return num_samples_read/nChannels;
 }
 
-/*void ofxAvAudioPlayer::readData(){
-	// this was quite helpful: http://ffmpeg.org/doxygen/trunk/demuxing_decoding_8c-example.html
-	
-	// do we still have data to decode?
-	if( decode_next_frame() ){
-		return true;
-	}
-	else{
-		// nope, grab next frame!
-		if(av_read_frame(container, packet) >= 0){
-			AVPacket orig_pkt = pkt;
-			do {
-				ret = decode_packet(&got_frame, 0);
-				if (ret < 0)
-					break;
-				pkt.data += ret;
-				pkt.size -= ret;
-			} while (pkt.size > 0);
-			av_free_packet(&orig_pkt);
-		}
-	}
-	
-}*/
-
 bool ofxAvAudioPlayer::decode_next_frame(){
 	int res = av_read_frame(container, packet);
 	bool didRead = res >= 0;
@@ -241,7 +206,6 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 		if (!decoded_frame) {
 			if (!(decoded_frame = av_frame_alloc())) {
 				fprintf(stderr, "Could not allocate audio frame\n");
-				//exit(1);
 				return false;
 			}
 		}
@@ -267,7 +231,10 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 												 input_channel_layout, (AVSampleFormat)decoded_frame->format, decoded_frame->sample_rate,
 												 0, NULL);
 				swr_init(swr_context);
+				if( true ) return;
 				
+				
+
 				if (!swr_context){
 					fprintf(stderr, "Could not allocate resampler context\n");
 					return false;
@@ -275,7 +242,6 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 				
 			}
 
-			
 			/* if a frame has been decoded, resample to desired rate */
 			int samples_per_channel = AVCODEC_MAX_AUDIO_FRAME_SIZE/output_num_channels;
 			//samples_per_channel = 512;
