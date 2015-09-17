@@ -231,9 +231,6 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 												 input_channel_layout, (AVSampleFormat)decoded_frame->format, decoded_frame->sample_rate,
 												 0, NULL);
 				swr_init(swr_context);
-				if( true ) return;
-				
-				
 
 				if (!swr_context){
 					fprintf(stderr, "Could not allocate resampler context\n");
