@@ -7,6 +7,7 @@
 //
 
 #include "ofxAvMetadata.h"
+#include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
 
 using namespace std;
@@ -209,4 +210,39 @@ panic:
 	}
 	
 	return success;
+}
+
+double ofxAvMetadata::duration( std::string filename ){
+	AVFormatContext* pFormatCtx = avformat_alloc_context();
+	string file = ofToDataPath(filename);
+	avformat_open_input(&pFormatCtx, file.c_str(), NULL, NULL);
+	avformat_find_stream_info(pFormatCtx,NULL);
+	int64_t duration = pFormatCtx->duration;
+	avformat_close_input(&pFormatCtx);
+	avformat_free_context(pFormatCtx);
+	
+	return duration/(double)AV_TIME_BASE;
+}
+
+float * ofxAvMetadata::amplitudePreview( std::string filename, int width ){
+	float * result = new float[width];
+	memset(result, 0, width*sizeof(float));
+	double duration = ofxAvMetadata::duration(filename);
+	if( duration == 0 ) return result;
+	
+	ofxAvAudioPlayer player;
+	player.setupAudioOut(1, (int)(100*width/duration));
+	player.loadSound(filename);
+	float buffer[100];
+	for( int i = 0; i < width; i++ ){
+		memset(buffer, 0, 100*sizeof(float)); 
+		player.audioOut(buffer, 100, 1);
+		// sorry!
+		float max = 0;
+		for( int j = 0; j < 100; j++ ){
+			max = MAX(abs(buffer[j]),max);
+		}
+		result[i] = max;
+	}
+	return result;
 }

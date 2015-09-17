@@ -36,6 +36,10 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	unloadSound();
 }
 
+ofxAvAudioPlayer::~ofxAvAudioPlayer(){
+	unloadSound();
+}
+
 bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	unloadSound();
 	

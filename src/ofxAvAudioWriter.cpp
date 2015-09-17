@@ -29,6 +29,7 @@ ofxAvAudioWriter::ofxAvAudioWriter(){
 }
 
 ofxAvAudioWriter::~ofxAvAudioWriter(){
+	close();
 	delete pkt;
 }
 

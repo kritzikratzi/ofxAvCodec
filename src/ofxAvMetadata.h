@@ -31,8 +31,13 @@ public:
 	// however, the file will not be reencoded, so there is no quality loss.
 	static bool update( std::string filename, std::map<std::string,std::string> newMetadata );
 	
+	// file duration in seconds
+	static double duration( std::string filename );
 	
-	
+	// in progress, not working yet! 
+	// mono amplitude preview
+	// you must delete[] this yourself!
+	static float * amplitudePreview( std::string filename, int width );
 };
 
 #endif /* defined(__emptyExample__ofxAvMetadata__) */

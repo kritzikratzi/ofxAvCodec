@@ -37,7 +37,7 @@ class ofxAvAudioPlayer{
 public: 
 	
 	ofxAvAudioPlayer();
-	
+	~ofxAvAudioPlayer(); 
 	
 	// call this first after create the player
 	bool setupAudioOut( int numChannels, int sampleRate );
