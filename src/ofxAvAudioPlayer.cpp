@@ -24,16 +24,18 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	output_num_channels = 2;
 	volume = 1;
 	
+	forceNativeFormat = false;
+	
 	isLooping = false;
 	container = NULL; 
 	decoded_frame = NULL;
 	codec_context = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 	swr_context = NULL; 
-	packet = NULL;
 	av_register_all();
 
 	unloadSound();
+	
 }
 
 ofxAvAudioPlayer::~ofxAvAudioPlayer(){
@@ -74,7 +76,13 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
  
 	// Find the apropriate codec and open it
 	codec_context = container->streams[audio_stream_id]->codec;
- 
+	if( forceNativeFormat ){
+		output_sample_rate = codec_context->sample_rate;
+		output_channel_layout = codec_context->channel_layout;
+		output_num_channels = av_get_channel_layout_nb_channels( output_channel_layout );
+		cout << "native audio thing: " << output_sample_rate << "Hz / " << output_num_channels << " channels" << endl;
+	}
+	
 	AVCodec* codec = avcodec_find_decoder(codec_context->codec_id);
 	if (avcodec_open2(codec_context, codec,NULL)) {
 		die("Could not find open the needed codec");
@@ -84,10 +92,9 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	// https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/decoding_encoding.c
 	//packet.data = inbuf;
 	//packet.size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
-	packet = new AVPacket();
-	av_init_packet(packet);
-	packet->data = NULL;
-	packet->size = 0;
+	av_init_packet(&packet);
+	packet.data = NULL;
+	packet.size = 0;
 
 	swr_context = NULL;
 	isLoaded = true;
@@ -119,10 +126,7 @@ void ofxAvAudioPlayer::unloadSound(){
 	next_seekTarget = -1;
 
 	
-	if( packet ){
-		av_free_packet(packet);
-		packet = NULL;
-	}
+	av_free_packet(&packet);
 	
 	if( decoded_frame ){
 		av_frame_unref(decoded_frame);
@@ -134,15 +138,16 @@ void ofxAvAudioPlayer::unloadSound(){
 		avcodec_close(codec_context);
 		avformat_close_input(&container);
 		avformat_free_context(container);
+		av_free(container); 
 		container = NULL;
 		codec_context = NULL;
 	}
 	
 	if( swr_context ){
+		swr_close(swr_context); 
 		swr_free(&swr_context);
 		swr_context = NULL;
 	}
-	
 }
 
 int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
@@ -159,7 +164,7 @@ int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 	if( !isPlaying ){ return 0; }
 	
 	
-	int max_read_packets = 2;
+	int max_read_packets = 4;
 	if( decoded_frame && decoded_frame);
 	// number of samples read per channel (up to bufferSize)
 	int num_samples_read = 0;
@@ -202,7 +207,8 @@ int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 }
 
 bool ofxAvAudioPlayer::decode_next_frame(){
-	int res = av_read_frame(container, packet);
+	av_free_packet(&packet);
+	int res = av_read_frame(container, &packet);
 	bool didRead = res >= 0;
 
 	if( didRead ){
@@ -217,7 +223,7 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 			av_frame_unref(decoded_frame);
 		}
 		
-		len = avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, packet);
+		len = avcodec_decode_audio4(codec_context, decoded_frame, &got_frame, &packet);
 		if (len < 0) {
 			// no data
 			return false;
@@ -254,8 +260,8 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 			decoded_buffer_pos = 0;
 		}
 
-		packet->size -= len;
-		packet->data += len;
+		packet.size -= len;
+		packet.data += len;
 //		packet->dts =
 //		packet->pts = AV_NOPTS_VALUE;
 		
@@ -300,7 +306,7 @@ void ofxAvAudioPlayer::setPositionMS(int ms){
 
 int ofxAvAudioPlayer::getPositionMS(){
 	if( !isLoaded ) return 0;
-	int64_t ts = packet->pts;
+	int64_t ts = packet.pts;
 	return av_time_to_millis( ts );
 }
 

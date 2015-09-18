@@ -133,16 +133,21 @@ public:
 	unsigned long long duration;
 	float volume; 
 
+	// by default resampling is taken care of automatically (set it with setupAudioOut())
+	// with this you can disable the sampling and force the file's native data format.
+	// set it before .loadSound
+	bool forceNativeFormat; 
+	
 	std::string getMetadata( std::string key );
 	std::map<std::string,std::string> getMetadata();
 
-private:
 	bool decode_next_frame();
-	unsigned long long av_time_to_millis( int64_t av_time ); 
+private:
+	unsigned long long av_time_to_millis( int64_t av_time );
 	int64_t millis_to_av_time( unsigned long long ms );
 	
 	// i think these could be useful public, rarely, but still ...
-	AVPacket * packet;
+	AVPacket packet;
 	int packet_data_size;
 	int buffer_size; 
 	uint8_t inbuf[AVCODEC_AUDIO_INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];

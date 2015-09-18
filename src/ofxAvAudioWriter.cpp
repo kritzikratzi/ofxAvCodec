@@ -205,6 +205,8 @@ void ofxAvAudioWriter::write(float *src, int numFrames){
 											&sw_dest, to_copy,
 											&sw_src, to_copy);
 
+		//TODO: this is still wrong if samples_converted != to_copy
+		// (ie. if in_sample_rate != out_sample_rate)
 		src += to_copy*in_num_channels;
 		frame_pointer += numFrames;
 		numFrames -= to_copy;
@@ -267,9 +269,9 @@ void ofxAvAudioWriter::close(){
 			}
 		}
 
+		av_write_trailer(ofmt_ctx);
 	}
 	
-	av_write_trailer(ofmt_ctx);
 
 bye:
 	if( swr_context ){
@@ -294,6 +296,7 @@ bye:
 
 	if( ofmt_ctx ){
 		//avcodec_close(ofmt_ctx->streams[0]->codec);
+		avio_close(ofmt_ctx->pb);
 		avformat_free_context(ofmt_ctx);
 		c = NULL;
 		ofmt_ctx = NULL;
@@ -336,8 +339,11 @@ static int select_sample_rate(AVCodec *codec, int preferred)
 	const int *p;
 	int best_samplerate = 0;
 	
+	//todo similar to check channels, this needs to be smarter.
+	// eg wav has no supported samplerates, but actually supports all sample rates.
+	// maybe not having supported sample rates means any rate is supported? 
 	if (!codec->supported_samplerates)
-		return 44100;
+		return preferred;
 	
 	p = codec->supported_samplerates;
 	while (*p) {

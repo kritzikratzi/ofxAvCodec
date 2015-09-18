@@ -230,19 +230,34 @@ float * ofxAvMetadata::amplitudePreview( std::string filename, int width ){
 	double duration = ofxAvMetadata::duration(filename);
 	if( duration == 0 ) return result;
 	
+	//TODO: find memleaks of player
 	ofxAvAudioPlayer player;
-	player.setupAudioOut(1, (int)(100*width/duration));
+	player.setupAudioOut(1, 22050);
 	player.loadSound(filename);
-	float buffer[100];
-	for( int i = 0; i < width; i++ ){
-		memset(buffer, 0, 100*sizeof(float)); 
-		player.audioOut(buffer, 100, 1);
-		// sorry!
-		float max = 0;
-		for( int j = 0; j < 100; j++ ){
-			max = MAX(abs(buffer[j]),max);
+	player.play(); 
+	float buffer[512];
+	int len;
+	int lastPos = 0;
+
+	int i = 0;
+	float sum = 0;
+	int * numSamples = new int[width];
+	memset(numSamples, 0, width*sizeof(int));
+	
+	int max = 8000*duration;
+	while( ( len = player.audioOut(buffer,512,1)) > 0 ){
+		for( int j = 0; j < len; j++ ){
+			int pos = MIN(width*i/max, width-1);
+			result[pos] += abs(buffer[j]);
+			numSamples[pos] ++;
+			++i;
 		}
-		result[i] = max;
 	}
+	
+	player.unloadSound(); 
+	for( int i = 0; i < width; i++ ){
+		result[i] /= MAX(1,numSamples[i] );
+	}
+	delete [] numSamples;
 	return result;
 }
