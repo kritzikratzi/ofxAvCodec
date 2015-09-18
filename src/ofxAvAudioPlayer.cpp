@@ -33,7 +33,7 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 	swr_context = NULL; 
 	av_register_all();
-
+	av_init_packet(&packet);
 	unloadSound();
 	
 }
@@ -125,7 +125,6 @@ void ofxAvAudioPlayer::unloadSound(){
 	decoded_buffer_len = 0;
 	next_seekTarget = -1;
 
-	
 	av_free_packet(&packet);
 	
 	if( decoded_frame ){
