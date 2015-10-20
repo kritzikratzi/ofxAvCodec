@@ -170,6 +170,8 @@ private:
 	int decoded_buffer_pos;
 	int decoded_buffer_len;
 	float decoded_buffer[AVCODEC_MAX_AUDIO_FRAME_SIZE];
+	
+	bool output_config_changed;
 };
 
 #endif

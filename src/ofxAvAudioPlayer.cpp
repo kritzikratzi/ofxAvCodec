@@ -22,6 +22,7 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	output_channel_layout = av_get_default_channel_layout(2);
 	output_sample_rate = 44100;
 	output_num_channels = 2;
+	output_config_changed = false; 
 	volume = 1;
 	
 	forceNativeFormat = false;
@@ -79,7 +80,13 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	if( forceNativeFormat ){
 		output_sample_rate = codec_context->sample_rate;
 		output_channel_layout = codec_context->channel_layout;
-		output_num_channels = av_get_channel_layout_nb_channels( output_channel_layout );
+		if( output_channel_layout == 0 ){
+			output_num_channels = codec_context->channels;
+			output_channel_layout = av_get_default_channel_layout(output_num_channels);
+		}
+		else{
+			output_num_channels = av_get_channel_layout_nb_channels( output_channel_layout );
+		}
 		cout << "native audio thing: " << output_sample_rate << "Hz / " << output_num_channels << " channels" << endl;
 	}
 	
@@ -102,16 +109,22 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	
 	// we continue here:
 	decode_next_frame();
-	//duration = av_time_to_millis(container->streams[audio_stream_id]->duration);
+	duration = av_time_to_millis(container->streams[audio_stream_id]->duration);
 
 	return true;
 }
 
 bool ofxAvAudioPlayer::setupAudioOut( int numChannels, int sampleRate ){
-	output_channel_layout = av_get_default_channel_layout(numChannels);
-	output_sample_rate = sampleRate;
-	output_num_channels = numChannels;
-
+	if( numChannels != output_num_channels || sampleRate != output_sample_rate ){
+		output_channel_layout = av_get_default_channel_layout(numChannels);
+		output_sample_rate = sampleRate;
+		output_num_channels = numChannels;
+		
+		if( swr_context != NULL ){
+			output_config_changed = true;
+		}
+	}
+	
 	return true;
 }
 
@@ -229,6 +242,15 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 		}
 		
 		if (got_frame) {
+			
+			if( swr_context != NULL && output_config_changed ){
+				output_config_changed = false;
+				if( swr_context ){
+					swr_close(swr_context);
+					swr_free(&swr_context);
+					swr_context = NULL;
+				}
+			}
 			
 			if( swr_context == NULL ){
 				int input_channel_layout = decoded_frame->channel_layout;

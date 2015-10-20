@@ -244,7 +244,7 @@ float * ofxAvMetadata::amplitudePreview( std::string filename, int width ){
 	int * numSamples = new int[width];
 	memset(numSamples, 0, width*sizeof(int));
 	
-	int max = 8000*duration;
+	int max = 22050*duration;
 	while( ( len = player.audioOut(buffer,512,1)) > 0 ){
 		for( int j = 0; j < len; j++ ){
 			int pos = MIN(width*i/max, width-1);
