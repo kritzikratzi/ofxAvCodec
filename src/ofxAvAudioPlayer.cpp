@@ -267,7 +267,6 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 					fprintf(stderr, "Could not allocate resampler context\n");
 					return false;
 				}
-				
 			}
 
 			/* if a frame has been decoded, resample to desired rate */
