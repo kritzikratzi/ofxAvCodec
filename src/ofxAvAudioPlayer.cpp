@@ -241,6 +241,10 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 			return false;
 		}
 		
+		if( packet.stream_index != audio_stream_id ){
+			return false;
+		}
+		
 		if (got_frame) {
 			
 			if( swr_context != NULL && output_config_changed ){
