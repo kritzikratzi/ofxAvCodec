@@ -1,4 +1,4 @@
-Useful infos for compiling ffmpeg/libavcodec
+Useful infos for compiling FFmpeg/libavcodec
 ===
 
 
@@ -89,7 +89,7 @@ Run ffmpeg.exe to verify that the correct configure options where in fact used.
 Compiling for Linux using Ubuntu
 ---
 
-This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu](ffmpeg guide for Ubuntu). The following steps assume a 64bit Ubuntu installation. 
+This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu](FFmpeg guide for Ubuntu). The following steps assume a 64bit Ubuntu installation. 
 
 
 	sudo apt-get update

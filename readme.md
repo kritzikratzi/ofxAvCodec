@@ -2,14 +2,26 @@ ofxAvCodec
 ===
 
 
-**Warning**  This is the danger zone. There is currently zero support for this. I don't have time to fix bugs. Just putting this out there because it could be useful to a lot of people. 
 
 So... what is it? <br>
 A small wrapper around libavcodec - the magic library that is painful to use, but basically the only cross platform way to read and write in many different media formats. 
 
-Advantages over the built in soundStreamPlayers: it gives you access to the raw buffer data. (well, semiraw. there is some resampling done first). 
 
-Downsides: licensing is ... complicated. 
+
+### Good
+
+* Uses FFmpeg (Supports linux,osx,windows,windows phone and android. Lots of different formats -- wav,mp3,ogg,flac,mp4,etc.)
+* You get access to the raw buffer data
+* Classes to read and write streaming audio
+* Built-in resampling
+* A class to read and update metadata
+* Waveform extract for previews
+
+### Bad
+
+* Uses FFmpeg
+* Mostly (?) memory leak free
+* Licensing is a bit tricky (ffmpeg is lgpl, dynamic linking necessary!)
 
 
 Example Read
@@ -47,14 +59,14 @@ Example Write
 	writer.addMeta("title", "my cool song"); 
 	writer.open(ofToDataPath("testo.wav"), "wav" );
 	
-	int N = 100;
+	int N = 100; // use an odd buffer size. just to show that we can! 
 	float * buffer = new float[N];
 	int num = 0;
 	
 	// write roughly 3000 samples in chunks of size N
 	while( num < 3000 ){
 		for( int i = 0; i < N; i++ ){
-			buffer[i] = sinf(num*2*3.1415*400/44100.0);
+			buffer[i] = sinf(num*TWO_PI*400/44100.0);
 			num ++;
 		}
 		writer.write(buffer, N);
@@ -76,6 +88,25 @@ Metadata Read/Update
 	myMeta["title"] = "careless whisper"; 
 	ofxAvMetadata::update("myfile.wav", myMeta ); 
 
+
+Waveform preview
+---
+
+
+	int resolution = 100; // number of datapoints
+	int width = 400; // display width
+	int heigt = 100; // display height
+	ofPath path = ofxAvMetadata::waveformAsPath(filename, resolution, width, height);
+	path.draw();
+	
+	// alternatively you can get the waveform data directly 
+	float * amplitudes = ofxAvMetadata::waveform(filename, resolution); 
+	// now do something funny with it
+	delete amplitudes; 
+	
+<img src="docs/waveform.png" width="520">
+
+
 Windows
 ---
 
@@ -95,7 +126,7 @@ Currently there is still some manual work involved:
 
 License
 ---
-libavcodec comes with a GPL/LGPL license. For convenience the precompiled binaries are included (compiled as shared libs, gpl plugins not enabled). I hope i made no mistake, ffmpeg maintains a hall of shame and i don't want to end up there. To be safe you could make your own build. To do so follow the notes in ffmpeg_src/readme.txt. 
+libavcodec comes with a GPL/LGPL license. For convenience the precompiled binaries are included (compiled as shared libs, gpl plugins not enabled). I hope I made no mistake, FFmpeg maintains a hall of shame and you and I don't want to end up there. To be safe you could make your own build. To do so follow the notes in ffmpeg_src/readme.txt. 
 
 
-The license of this plugin itself is, as always, the WTFPL. 
+The license of this plugin itself is the MIT License, or the WTFPL. Have your pick. Either way, I do appreciate credits. 

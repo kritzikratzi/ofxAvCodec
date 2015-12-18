@@ -224,11 +224,11 @@ double ofxAvMetadata::duration( std::string filename ){
 	return duration/(double)AV_TIME_BASE;
 }
 
-float * ofxAvMetadata::amplitudePreview( std::string filename, int width ){
-	float * result = new float[width];
-	memset(result, 0, width*sizeof(float));
+float * ofxAvMetadata::waveform( std::string filename, int resolution ){
+	float * result = new float[resolution];
+	memset(result, 0, resolution*sizeof(float));
 	double duration = ofxAvMetadata::duration(filename);
-	if( duration == 0 ) return result;
+	if( duration == 0 || resolution < 1 ) return result;
 	
 	//TODO: find memleaks of player
 	ofxAvAudioPlayer player;
@@ -240,24 +240,33 @@ float * ofxAvMetadata::amplitudePreview( std::string filename, int width ){
 	int lastPos = 0;
 
 	int i = 0;
-	float sum = 0;
-	int * numSamples = new int[width];
-	memset(numSamples, 0, width*sizeof(int));
 	
 	int max = 22050*duration;
 	while( ( len = player.audioOut(buffer,512,1)) > 0 ){
 		for( int j = 0; j < len; j++ ){
-			int pos = MIN(width*i/max, width-1);
-			result[pos] += abs(buffer[j]);
-			numSamples[pos] ++;
+			// don't remove that cast to float, or we get int overflows!
+			int pos = MIN(resolution*(float)i/max, resolution-1);
+			result[pos] = MAX(result[pos],abs(buffer[j]));
 			++i;
 		}
 	}
-	
-	player.unloadSound(); 
-	for( int i = 0; i < width; i++ ){
-		result[i] /= MAX(1,numSamples[i] );
-	}
-	delete [] numSamples;
+	player.unloadSound();
 	return result;
+}
+
+ofPath ofxAvMetadata::waveformAsPath( std::string filename, int resolution, float meshWidth, float meshHeight ){
+	ofPath path;
+	float h = 0.5*meshHeight-1;
+	if( meshWidth < 1 || resolution < 2 ) return path;
+	
+	float * amp = waveform(filename, resolution);
+	for( int i = 0; i < resolution; i++ ){
+		path.lineTo(i*meshWidth/(resolution-1), h*(1-amp[i])-0.5 );
+	}
+	for( int i = resolution-1; i >= 0; i-- ){
+		path.lineTo(i*meshWidth/(resolution-1), h*(1+amp[i])+0.5 );
+	}
+	delete amp; 
+	
+	return path;
 }

@@ -11,7 +11,7 @@
 
 #include <map>
 #include <string>
-
+#include "ofPath.h"
 extern "C"{
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -34,10 +34,17 @@ public:
 	// file duration in seconds
 	static double duration( std::string filename );
 	
-	// in progress, not working yet! 
 	// mono amplitude preview
 	// you must delete[] this yourself!
-	static float * amplitudePreview( std::string filename, int width );
+	// resolution: number of datapoints (ie. sizeof of the returned array)
+	static float * waveform( std::string filename, int resolution );
+	
+	// amplitude preview as path
+	// resolution: number of datapoints in x direction
+	// meshWidth: pixel width of target mesh
+	// meshHeight: pixel height of target mesh
+	// the data will be plotted around meshHeight/2
+	static ofPath waveformAsPath( std::string filename, int resolution, float meshWidth = 1, float meshHeight = 1 );
 };
 
 #endif /* defined(__emptyExample__ofxAvMetadata__) */
