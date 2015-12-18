@@ -10,7 +10,7 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 
 ### Good
 
-* Uses FFmpeg (Supports linux,osx,windows,windows phone and android. Lots of different formats -- wav,mp3,ogg,flac,mp4,etc.)
+* Uses FFmpeg (Supports linux,osx,ios,windows,windows phone and android. Lots of different formats -- wav,mp3,ogg,flac,mp4,etc.)
 * You get access to the raw buffer data
 * Classes to read and write streaming audio
 * Built-in resampling
