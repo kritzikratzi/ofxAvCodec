@@ -18,6 +18,7 @@ static int select_sample_rate(AVCodec *codec, int preferred);
 static int select_channel_layout(AVCodec *codec, int preferred);
 
 ofxAvAudioWriter::ofxAvAudioWriter(){
+	c = NULL; 
 	swr_context = NULL;
 	ofmt_ctx = NULL;
 	out_stream = NULL;
