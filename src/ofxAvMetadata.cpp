@@ -9,6 +9,7 @@
 #include "ofxAvMetadata.h"
 #include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
+#include <Poco/Path.h>
 
 using namespace std;
 
@@ -56,7 +57,6 @@ bool ofxAvMetadata::update(std::string filename, std::map<std::string, std::stri
 	Poco::Path filepath(fileNameAbs);
 	filepath.setBaseName("." + filepath.getBaseName()+".meta_tmp");
 	string destFile = filepath.toString();
-	
 	
 	if (avformat_open_input(&container, input_filename, NULL, NULL) < 0) {
 		cerr << ("Could not open file") << endl;
@@ -216,6 +216,10 @@ double ofxAvMetadata::duration( std::string filename ){
 	AVFormatContext* pFormatCtx = avformat_alloc_context();
 	string file = ofToDataPath(filename);
 	avformat_open_input(&pFormatCtx, file.c_str(), NULL, NULL);
+	if(!pFormatCtx ){
+		avformat_free_context(pFormatCtx);
+		return 0.00000001;
+	}
 	avformat_find_stream_info(pFormatCtx,NULL);
 	int64_t duration = pFormatCtx->duration;
 	avformat_close_input(&pFormatCtx);

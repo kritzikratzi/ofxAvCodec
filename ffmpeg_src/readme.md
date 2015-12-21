@@ -22,16 +22,36 @@ Command Line
 
 Compiling on Mac OS
 ---
-The included binaries were compiled with 
+The to create a universal binary run the following commands in the ffmpeg source directory: 
 
+	# 1. Build 64 bit
+	make clean
 	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs
+	make && make install
+	mv @executable_path libs_64
 	
-This will create 64bit libraries. 
-For 32bit add these flags (if you built for 64bit earlier you must run a `make clean` first): 
+	# 2. Build 32 bit
+	make clean
+	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386
+	make && make install
+	mv @executable_path libs_32
 
-	--extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386
+	# 3. Combine dylibs into fat libs and copy over symlinks
+	mkdir libs
+	for file in libs_64/*.dylib
+	do
+		f=$(basename $file)
+		if [ -h $file ];then;cp -av $file libs
+		else;lipo libs_32/$f $file -output libs/$f -create
+		fi
+	done
 	
-	
+	# 4. Clean up a bit to be ready for the next build ... 
+	rm -rf libs_32 libs_64
+	mv libs libs-$(git rev-parse HEAD)
+
+Done! Now copy the include dir to ofxAvCodec/libs/avcodec/include and the libs dir to ofxAvCodec/libs/avcodec/lib/osx
+
 Btw: Directly after running configure you get a neat list of all enabled components like codecs, muxer, and other things I've never heard of. 
 
 
@@ -42,14 +62,10 @@ Btw: Directly after running configure you get a neat list of all enabled compone
 |`--enable-shared`|compile as shared libraries (disables static libs)|
 |`--shlibdir="@executable_path"`|tells each dylib to look for other dylibs in the same folder (i think)|
 |`--disable-indevs`|Disables input devices like qtkit. I added this flag to get rid of the shared lib dependency to jack audio|
+|`--extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386`|Create 32 bit binaries|
 
 
-Anyways, when you're done with the configuration run 
-
-	make && make install
 	
-Hurray, now you have all you need in the dist folder! 
-
 * Copy only the dylibs to libs/avcodec/lib/osx (i copied the symlinks too, but not they're needed)
 * Copy the header directory to libs/avcodec/include
 * Make sure to keep the file libs/avcodec/include/libavutil/inttypes.h
