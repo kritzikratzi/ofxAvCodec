@@ -80,7 +80,7 @@ Metadata Read/Update
 
 
 	// Read metadata without reading the file
-	map<string,string> meta = ofxAvMetadata::read("myfile.wav"); 
+	map<string,string> meta = ofxAvUtils::read("myfile.wav"); 
 	
 	// Write metadata without re-encoding the file 
 	// this still reads and writes the entire file though! 
@@ -96,11 +96,11 @@ Waveform preview
 	int resolution = 100; // number of datapoints
 	int width = 400; // display width
 	int heigt = 100; // display height
-	ofPath path = ofxAvMetadata::waveformAsPath(filename, resolution, width, height);
+	ofPath path = ofxAvUtil::waveformAsPath(filename, resolution, width, height);
 	path.draw();
 	
 	// alternatively you can get the waveform data directly 
-	float * amplitudes = ofxAvMetadata::waveform(filename, resolution); 
+	float * amplitudes = ofxAvUtil::waveform(filename, resolution); 
 	// now do something funny with it
 	delete amplitudes; 
 	

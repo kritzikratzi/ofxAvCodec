@@ -1,19 +1,19 @@
 //
-//  ofxAvMetadata.cpp
+//  ofxAvUtils.cpp
 //  emptyExample
 //
 //  Created by Hansi on 16.09.15.
 //
 //
 
-#include "ofxAvMetadata.h"
+#include "ofxAvUtils.h"
 #include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
 #include <Poco/Path.h>
 
 using namespace std;
 
-std::map<string,string> ofxAvMetadata::read( std::string filename ){
+std::map<string,string> ofxAvUtils::read( std::string filename ){
 	string fileNameAbs = ofToDataPath(filename,true);
 	const char * input_filename = fileNameAbs.c_str();
 	// the first finds the right codec, following  https://blinkingblip.wordpress.com/2011/10/08/decoding-and-playing-an-audio-stream-using-libavcodec-libavformat-and-libao/
@@ -38,7 +38,7 @@ std::map<string,string> ofxAvMetadata::read( std::string filename ){
 }
 
 
-bool ofxAvMetadata::update(std::string filename, std::map<std::string, std::string> newMetadata){
+bool ofxAvUtils::update(std::string filename, std::map<std::string, std::string> newMetadata){
 	string fileNameAbs = ofToDataPath(filename,true);
 	const char * input_filename = fileNameAbs.c_str();
 	AVCodecContext * codec_context = NULL;
@@ -212,7 +212,7 @@ panic:
 	return success;
 }
 
-double ofxAvMetadata::duration( std::string filename ){
+double ofxAvUtils::duration( std::string filename ){
 	AVFormatContext* pFormatCtx = avformat_alloc_context();
 	string file = ofToDataPath(filename);
 	avformat_open_input(&pFormatCtx, file.c_str(), NULL, NULL);
@@ -228,49 +228,68 @@ double ofxAvMetadata::duration( std::string filename ){
 	return duration/(double)AV_TIME_BASE;
 }
 
-float * ofxAvMetadata::waveform( std::string filename, int resolution ){
-	float * result = new float[resolution];
-	memset(result, 0, resolution*sizeof(float));
-	double duration = ofxAvMetadata::duration(filename);
-	if( duration == 0 || resolution < 1 ) return result;
+float * ofxAvUtils::waveform( std::string filename, int resolution, float fixedDurationInSeconds ){
+	if( resolution < 1 ) return NULL;
 	
 	//TODO: find memleaks of player
 	ofxAvAudioPlayer player;
 	player.setupAudioOut(1, 22050);
 	player.loadSound(filename);
-	player.play(); 
+	player.play();
 	float buffer[512];
 	int len;
 	int lastPos = 0;
 
-	int i = 0;
+	float * result = new float[resolution];
+	memset(result, 0, resolution*sizeof(float));
 	
-	int max = 22050*duration;
+	if( player.duration == 0 ){
+		player.unloadSound();
+		return result;
+	}
+	
+	int i = 0;
+	int max = fixedDurationInSeconds == -1?(22.050*player.duration):(22050*fixedDurationInSeconds);
 	while( ( len = player.audioOut(buffer,512,1)) > 0 ){
 		for( int j = 0; j < len; j++ ){
 			// don't remove that cast to float, or we get int overflows!
+			if( i > max ) goto unload;
 			int pos = MIN(resolution*(float)i/max, resolution-1);
 			result[pos] = MAX(result[pos],abs(buffer[j]));
 			++i;
 		}
 	}
+unload:
 	player.unloadSound();
 	return result;
 }
 
-ofPath ofxAvMetadata::waveformAsPath( std::string filename, int resolution, float meshWidth, float meshHeight ){
-	ofPath path;
+ofPolyline ofxAvUtils::waveformAsPolyline( std::string filename, int resolution, float meshWidth, float meshHeight, float fixedDuratioInSeconds ){
+	ofPolyline polyline;
 	float h = 0.5*meshHeight-1;
-	if( meshWidth < 1 || resolution < 2 ) return path;
+	if( meshWidth < 1 || resolution < 2 ) return polyline;
+	float * amp = waveform(filename, resolution, fixedDuratioInSeconds);
 	
-	float * amp = waveform(filename, resolution);
-	for( int i = 0; i < resolution; i++ ){
-		path.lineTo(i*meshWidth/(resolution-1), h*(1-amp[i])-0.5 );
+	if( amp != NULL ){
+		for( int i = 0; i < resolution; i++ ){
+			polyline.lineTo(i*meshWidth/(resolution-1), h*(1-amp[i])-0.5 );
+		}
+		
+		for( int i = resolution-1; i >= 0; i-- ){
+			polyline.lineTo(i*meshWidth/(resolution-1), h*(1+amp[i])+0.5 );
+		}
+		
+		delete [] amp;
 	}
-	for( int i = resolution-1; i >= 0; i-- ){
-		path.lineTo(i*meshWidth/(resolution-1), h*(1+amp[i])+0.5 );
-	}
-	delete amp; 
 	
-	return path;
+	return polyline;
+}
+
+ofMesh ofxAvUtils::waveformAsMesh( std::string filename, int resolution, float meshWidth, float meshHeight, float fixedDuratioInSeconds ){
+	ofPolyline polyline = waveformAsPolyline(filename, resolution, meshWidth, meshHeight, fixedDuratioInSeconds);
+	ofTessellator tesselator;
+	ofMesh mesh;
+	tesselator.tessellateToMesh(polyline, OF_POLY_WINDING_ODD, mesh);
+	
+	return mesh;
 }
