@@ -76,7 +76,7 @@ private:
 	int buffer_size;
 
 	AVCodec *codec;
-	AVCodecContext *c= NULL;
+	AVCodecContext *c;
 	AVFrame *frame;
 	AVPacket *pkt;
 	
