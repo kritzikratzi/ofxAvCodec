@@ -7,6 +7,7 @@
 //
 
 #include "ofxAvAudioWriter.h"
+#include "ofxAvUtils.h"
 #include <algorithm>
 #include "ofMain.h"
 
@@ -18,7 +19,8 @@ static int select_sample_rate(AVCodec *codec, int preferred);
 static int select_channel_layout(AVCodec *codec, int preferred);
 
 ofxAvAudioWriter::ofxAvAudioWriter(){
-	c = NULL; 
+	ofxAvUtils::init(); 
+	c = NULL;
 	swr_context = NULL;
 	ofmt_ctx = NULL;
 	out_stream = NULL;

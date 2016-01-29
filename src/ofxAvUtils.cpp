@@ -13,7 +13,20 @@
 
 using namespace std;
 
+// following lock impl as discussed in opencv http://code.opencv.org/issues/1369
+static int ffmpeg_lockmgr_cb(void **mutex, enum AVLockOp op);
+
+void ofxAvUtils::init(){
+	static bool didInit = false;
+	if( didInit ) return;
+	didInit = true;
+	cout << "Initializing AvCodec" << endl;
+	av_register_all();
+	av_lockmgr_register(ffmpeg_lockmgr_cb);
+}
+
 std::map<string,string> ofxAvUtils::read( std::string filename ){
+	init();
 	string fileNameAbs = ofToDataPath(filename,true);
 	const char * input_filename = fileNameAbs.c_str();
 	// the first finds the right codec, following  https://blinkingblip.wordpress.com/2011/10/08/decoding-and-playing-an-audio-stream-using-libavcodec-libavformat-and-libao/
@@ -39,6 +52,7 @@ std::map<string,string> ofxAvUtils::read( std::string filename ){
 
 
 bool ofxAvUtils::update(std::string filename, std::map<std::string, std::string> newMetadata){
+	init();
 	string fileNameAbs = ofToDataPath(filename,true);
 	const char * input_filename = fileNameAbs.c_str();
 	AVCodecContext * codec_context = NULL;
@@ -213,6 +227,7 @@ panic:
 }
 
 double ofxAvUtils::duration( std::string filename ){
+	init();
 	AVFormatContext* pFormatCtx = avformat_alloc_context();
 	string file = ofToDataPath(filename);
 	avformat_open_input(&pFormatCtx, file.c_str(), NULL, NULL);
@@ -249,34 +264,35 @@ float * ofxAvUtils::waveform( std::string filename, int resolution, float fixedD
 	}
 	
 	int i = 0;
-	int max = fixedDurationInSeconds == -1?(22.050*player.duration):(22050*fixedDurationInSeconds);
+	int max = (int)(fixedDurationInSeconds == -1.0f?(22.050f*player.duration):(22050*fixedDurationInSeconds));
 	while( ( len = player.audioOut(buffer,512,1)) > 0 ){
 		for( int j = 0; j < len; j++ ){
 			// don't remove that cast to float, or we get int overflows!
 			if( i > max ) goto unload;
-			int pos = MIN(resolution*(float)i/max, resolution-1);
+			int pos = (int)min(resolution*(float)i/max, resolution-1.0f);
 			result[pos] = MAX(result[pos],abs(buffer[j]));
 			++i;
 		}
 	}
 unload:
+
 	player.unloadSound();
 	return result;
 }
 
 ofPolyline ofxAvUtils::waveformAsPolyline( std::string filename, int resolution, float meshWidth, float meshHeight, float fixedDuratioInSeconds ){
 	ofPolyline polyline;
-	float h = 0.5*meshHeight-1;
+	float h = 0.5f*meshHeight-1;
 	if( meshWidth < 1 || resolution < 2 ) return polyline;
 	float * amp = waveform(filename, resolution, fixedDuratioInSeconds);
 	
 	if( amp != NULL ){
 		for( int i = 0; i < resolution; i++ ){
-			polyline.lineTo(i*meshWidth/(resolution-1), h*(1-amp[i])-0.5 );
+			polyline.lineTo(i*meshWidth/(resolution-1), h*(1-amp[i])-0.5f );
 		}
 		
 		for( int i = resolution-1; i >= 0; i-- ){
-			polyline.lineTo(i*meshWidth/(resolution-1), h*(1+amp[i])+0.5 );
+			polyline.lineTo(i*meshWidth/(resolution-1), h*(1+amp[i])+0.5f );
 		}
 		
 		delete [] amp;
@@ -292,4 +308,22 @@ ofMesh ofxAvUtils::waveformAsMesh( std::string filename, int resolution, float m
 	tesselator.tessellateToMesh(polyline, OF_POLY_WINDING_ODD, mesh);
 	
 	return mesh;
+}
+
+
+static int ffmpeg_lockmgr_cb(void **mutex, enum AVLockOp op){
+	switch(op){
+		case AV_LOCK_CREATE:
+			*mutex = new ofMutex();
+			return *mutex?0:1;
+		case AV_LOCK_DESTROY:
+			delete (ofMutex*)*mutex;
+			return 0;
+		case AV_LOCK_OBTAIN:
+			((ofMutex*)*mutex)->lock();
+			return 0;
+		case AV_LOCK_RELEASE:
+			((ofMutex*)*mutex)->unlock();
+			return 0;
+	}
 }

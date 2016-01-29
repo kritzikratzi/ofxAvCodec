@@ -12,12 +12,14 @@
 
 #include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
+#include "ofxAvUtils.h"
 
 using namespace std;
 
 #define die(msg) { unloadSound(); cerr << msg << endl; return false; }
 
 ofxAvAudioPlayer::ofxAvAudioPlayer(){
+	ofxAvUtils::init(); 
 	// default audio settings
 	output_channel_layout = av_get_default_channel_layout(2);
 	output_sample_rate = 44100;
@@ -33,7 +35,6 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	codec_context = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 	swr_context = NULL; 
-	av_register_all();
 	av_init_packet(&packet);
 	unloadSound();
 	

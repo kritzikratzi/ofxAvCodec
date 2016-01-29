@@ -22,7 +22,11 @@ extern "C"{
 #include <libswresample/swresample.h>
 }
 class ofxAvUtils{
-public: 
+public:
+	
+	// make sure ffmpeg is initialized
+	static void init(); 
+	
 	// read metadata of a file
 	static std::map<std::string,std::string> read( std::string filename );
 	
