@@ -340,7 +340,7 @@ float ofxAvAudioPlayer::getPosition(){
 }
 
 void ofxAvAudioPlayer::setPosition(float percent){
-	if(duration>0) setPositionMS(percent*duration);
+	if(duration>0) setPositionMS((int)(percent*duration));
 }
 
 void ofxAvAudioPlayer::stop(){

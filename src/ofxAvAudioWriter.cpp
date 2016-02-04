@@ -185,6 +185,8 @@ bool ofxAvAudioWriter::open(string filename, AVCodecID codec_id, int requestedOu
 	if (!swr_context){
 		die("Could not allocate resampler context\n");
 	}
+	
+	return true; 
 }
 
 void ofxAvAudioWriter::write(float *src, int numFrames){
@@ -227,6 +229,9 @@ void ofxAvAudioWriter::write(float *src, int numFrames){
 			if (got_output) {
 				//fwrite(pkt->data, 1, pkt->size, f);
 				ret = av_write_frame(ofmt_ctx, pkt);
+				if( ret < 0 ){
+					fprintf(stderr, "Error %d when writing audio frame\n", ret );
+				}
 				av_free_packet(pkt);
 			}
 		}
@@ -251,6 +256,9 @@ void ofxAvAudioWriter::close(){
 				//fwrite(pkt->data, 1, pkt->size, f);
 				cout << "got special packet with " << pkt->size << " bytes" << endl;
 				ret = av_write_frame(ofmt_ctx, pkt);
+				if( ret < 0 ){
+					fprintf(stderr, "Error %d when writing audio frame\n", ret );
+				}
 				av_free_packet(pkt);
 			}
 		}
