@@ -16,7 +16,7 @@
 
 using namespace std;
 
-#define die(msg) { unloadSound(); cerr << msg << endl; return false; }
+#define die(msg) { unload(); cerr << msg << endl; return false; }
 
 ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	ofxAvUtils::init(); 
@@ -36,16 +36,20 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
 	swr_context = NULL; 
 	av_init_packet(&packet);
-	unloadSound();
+	unload();
 	
 }
 
 ofxAvAudioPlayer::~ofxAvAudioPlayer(){
-	unloadSound();
+	unload();
 }
 
 bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
-	unloadSound();
+	return load(fileName, stream);
+}
+
+bool ofxAvAudioPlayer::load(string fileName, bool stream){
+	unload();
 	
 	string fileNameAbs = ofToDataPath(fileName,true);
 	const char * input_filename = fileNameAbs.c_str();
@@ -105,7 +109,7 @@ bool ofxAvAudioPlayer::loadSound(string fileName, bool stream){
 	packet.size = 0;
 
 	swr_context = NULL;
-	isLoaded = true;
+	fileLoaded = true;
 	isPlaying = true;
 	
 	// we continue here:
@@ -129,10 +133,13 @@ bool ofxAvAudioPlayer::setupAudioOut( int numChannels, int sampleRate ){
 	return true;
 }
 
-
 void ofxAvAudioPlayer::unloadSound(){
+	unload();
+}
+
+void ofxAvAudioPlayer::unload(){
 	len = 0;
-	isLoaded = false;
+	fileLoaded = false;
 	isPlaying = false;
 	packet_data_size = 0;
 	decoded_buffer_pos = 0;
@@ -164,7 +171,7 @@ void ofxAvAudioPlayer::unloadSound(){
 }
 
 int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
-	if( !isLoaded ){ return 0; }
+	if( !fileLoaded ){ return 0; }
 	
 	if( next_seekTarget >= 0 ){
 		//av_seek_frame(container,-1,next_seekTarget,AVSEEK_FLAG_ANY);
@@ -325,12 +332,12 @@ int64_t ofxAvAudioPlayer::millis_to_av_time( unsigned long long ms ){
 
 
 
-void ofxAvAudioPlayer::setPositionMS(int ms){
+void ofxAvAudioPlayer::setPositionMS(unsigned long long ms){
 	next_seekTarget = millis_to_av_time(ms);
 }
 
 int ofxAvAudioPlayer::getPositionMS(){
-	if( !isLoaded ) return 0;
+	if( !fileLoaded ) return 0;
 	int64_t ts = packet.pts;
 	return av_time_to_millis( ts );
 }
@@ -348,9 +355,13 @@ void ofxAvAudioPlayer::stop(){
 }
 
 void ofxAvAudioPlayer::play(){
-	if( isLoaded ){
+	if( fileLoaded ){
 		isPlaying = true;
 	}
+}
+
+void ofxAvAudioPlayer::setPaused(bool paused){
+	isPlaying = fileLoaded?false:!paused;
 }
 
 void ofxAvAudioPlayer::setLoop(bool loop){
@@ -359,6 +370,22 @@ void ofxAvAudioPlayer::setLoop(bool loop){
 
 void ofxAvAudioPlayer::setVolume(float vol){
 	this->volume = vol;
+}
+
+float ofxAvAudioPlayer::getVolume(){
+	return volume;
+}
+
+bool ofxAvAudioPlayer::isLoaded(){
+	return fileLoaded; 
+}
+
+unsigned long long ofxAvAudioPlayer::getDurationMs(){
+	return duration;
+}
+
+bool ofxAvAudioPlayer::getIsPlaying(){
+	return isPlaying; 
 }
 
 string ofxAvAudioPlayer::getMetadata( string key ){

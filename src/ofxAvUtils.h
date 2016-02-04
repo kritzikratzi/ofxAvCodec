@@ -28,12 +28,15 @@ public:
 	static void init(); 
 	
 	// read metadata of a file
-	static std::map<std::string,std::string> read( std::string filename );
+	static std::map<std::string,std::string> readMetadata( std::string filename );
 	
 	// updates the metadata.
 	// the entire file has to be read and written during the process, so this is not fast!
 	// however, the file will not be reencoded, so there is no quality loss.
-	static bool update( std::string filename, std::map<std::string,std::string> newMetadata );
+	static bool updateMetadata( std::string filename, std::map<std::string,std::string> newMetadata );
+	
+	static __attribute__ ((deprecated)) std::map<std::string,std::string> read( std::string filename );
+	static __attribute__ ((deprecated)) bool update( std::string filename, std::map<std::string,std::string> newMetadata );
 	
 	// file duration in seconds
 	static double duration( std::string filename );

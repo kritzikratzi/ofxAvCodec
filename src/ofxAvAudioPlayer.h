@@ -45,21 +45,19 @@ public:
 	// returns the number of frames (0...bufferSize) that were played. 
 	int audioOut( float * output, int bufferSize, int nChannels );
 	
-	// ok, so ... it _would_ be nice if this was mostly compatible with the OF sound players.
-	// for now i've copied everything in here, if things go well
-	// i (or you) can implement one after the other.
-	
 	/// \brief Tells the sound player which file to play.
 	///
-	/// Codec support varies by platform but wav, aif, and mp3 are safe.
+	/// Codec support is ginormous. this can even load most movie files and extract the audio.
 	///
 	/// \param fileName Path to the sound file, relative to your app's data folder.
-	/// \param stream set "true" to enable streaming from disk (for large files).
-	// hansi: currently stream is always yes
-	bool loadSound(std::string fileName, bool stream = true);
+	/// \param "stream" is always true, the argument is here only for compatibility with OFs built in sound player
+	bool load(std::string fileName, bool stream = true);
 	
 	/// \brief Stops and unloads the current sound.
-	void unloadSound();
+	void unload();
+	
+	bool __attribute__ ((deprecated)) loadSound(std::string fileName, bool stream = true);
+	void __attribute__ ((deprecated))unloadSound();
 	
 	/// \brief Starts playback.
 	void play();
@@ -73,7 +71,7 @@ public:
 	
 	/// \brief Sets stereo pan.
 	/// \param pan range is -1 to 1 (-1 is full left, 1 is full right).
-	//void setPan(float pan);
+	// void setPan(float pan);
 	
 	/// \brief Sets playback speed.
 	/// \param speed set > 1 for faster playback, < 1 for slower playback.
@@ -97,7 +95,7 @@ public:
 	
 	/// \brief Sets position of the playhead within the file (aka "seeking").
 	/// \param ms number of milliseconds from the start of the file.
-	void setPositionMS(int ms);
+	void setPositionMS(unsigned long long ms);
 	
 	/// \brief Gets position of the playhead.
 	/// \return playhead position in milliseconds.
@@ -111,6 +109,10 @@ public:
 	/// \return true if the player is currently playing a file.
 	bool getIsPlaying();
 	
+	/// \brief Gets duration in 
+	/// \return true if the player is currently playing a file.
+	unsigned long long getDurationMs();
+
 	/// \brief Gets playback speed.
 	/// \return playback speed (see ofSoundPlayer::setSpeed()).
 	//float getSpeed();
@@ -121,28 +123,35 @@ public:
 	
 	/// \brief Gets current volume.
 	/// \return current volume in the range 0 to 1.
-	//float getVolume();
+	float getVolume();
 	
 	/// \brief Queries the player to see if its file was loaded successfully.
 	/// \return whether or not the player is ready to begin playback.
-	//bool isLoaded();
+	bool isLoaded();
 	
-	bool isLoaded;
-	bool isPlaying;
-	bool isLooping; 
-	unsigned long long duration;
-	float volume; 
-
+	
 	// by default resampling is taken care of automatically (set it with setupAudioOut())
 	// with this you can disable the sampling and force the file's native data format.
-	// set it before .loadSound
+	// set it before .load
 	bool forceNativeFormat; 
 	
+	/// \brief return a metadata item. available after load()
+	/// \return the string contents of the metadata item
 	std::string getMetadata( std::string key );
+	
+	/// \brief return all metadata. available after load()
+	/// \return a map containing all metadata
 	std::map<std::string,std::string> getMetadata();
 
-	bool decode_next_frame();
 private:
+	unsigned long long duration;
+	float volume;
+	bool decode_next_frame();
+	
+	bool fileLoaded;
+	bool isPlaying;
+	bool isLooping;
+	
 	unsigned long long av_time_to_millis( int64_t av_time );
 	int64_t millis_to_av_time( unsigned long long ms );
 	

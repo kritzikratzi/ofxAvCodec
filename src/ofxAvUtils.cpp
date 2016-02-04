@@ -26,6 +26,10 @@ void ofxAvUtils::init(){
 }
 
 std::map<string,string> ofxAvUtils::read( std::string filename ){
+	return readMetadata(filename);
+}
+
+std::map<string,string> ofxAvUtils::readMetadata( std::string filename ){
 	init();
 	string fileNameAbs = ofToDataPath(filename,true);
 	const char * input_filename = fileNameAbs.c_str();
@@ -50,8 +54,11 @@ std::map<string,string> ofxAvUtils::read( std::string filename ){
 	return meta;
 }
 
-
 bool ofxAvUtils::update(std::string filename, std::map<std::string, std::string> newMetadata){
+	return updateMetadata(filename, newMetadata);
+}
+
+bool ofxAvUtils::updateMetadata(std::string filename, std::map<std::string, std::string> newMetadata){
 	init();
 	string fileNameAbs = ofToDataPath(filename,true);
 	const char * input_filename = fileNameAbs.c_str();
@@ -249,7 +256,7 @@ float * ofxAvUtils::waveform( std::string filename, int resolution, float fixedD
 	//TODO: find memleaks of player
 	ofxAvAudioPlayer player;
 	player.setupAudioOut(1, 22050);
-	player.loadSound(filename);
+	player.load(filename);
 	player.play();
 	float buffer[512];
 	int len;
@@ -258,13 +265,13 @@ float * ofxAvUtils::waveform( std::string filename, int resolution, float fixedD
 	float * result = new float[resolution];
 	memset(result, 0, resolution*sizeof(float));
 	
-	if( player.duration == 0 ){
-		player.unloadSound();
+	if( player.getDurationMs() == 0 ){
+		player.unload();
 		return result;
 	}
 	
 	int i = 0;
-	int max = (int)(fixedDurationInSeconds == -1.0f?(22.050f*player.duration):(22050*fixedDurationInSeconds));
+	int max = (int)(fixedDurationInSeconds == -1.0f?(22.050f*player.getDurationMs()):(22050*fixedDurationInSeconds));
 	while( ( len = player.audioOut(buffer,512,1)) > 0 ){
 		for( int j = 0; j < len; j++ ){
 			// don't remove that cast to float, or we get int overflows!
@@ -276,7 +283,7 @@ float * ofxAvUtils::waveform( std::string filename, int resolution, float fixedD
 	}
 unload:
 
-	player.unloadSound();
+	player.unload();
 	return result;
 }
 
