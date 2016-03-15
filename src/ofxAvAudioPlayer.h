@@ -56,8 +56,8 @@ public:
 	/// \brief Stops and unloads the current sound.
 	void unload();
 	
-	bool __attribute__ ((deprecated)) loadSound(std::string fileName, bool stream = true);
-	void __attribute__ ((deprecated))unloadSound();
+	bool loadSound(std::string fileName, bool stream = true);
+	void unloadSound();
 	
 	/// \brief Starts playback.
 	void play();
