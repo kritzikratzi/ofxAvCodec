@@ -1,12 +1,8 @@
 ofxAvCodec
 ===
 
-
-
 So... what is it? <br>
 A small wrapper around libavcodec - the magic library that is painful to use, but basically the only cross platform way to read and write in many different media formats. 
-
-
 
 ### Good
 
@@ -23,9 +19,28 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 * Mostly (?) memory leak free
 * Licensing is a bit tricky (ffmpeg is lgpl, dynamic linking necessary!)
 
+# Instructions 
 
-Example Read
----
+1. Clone this repository in your addons folder
+2. Download the latest binary release from https://github.com/kritzikratzi/ofxAvCodec/releases
+3. Take the `lib` folder from the zip and copy it to `addons\ofxAvCodec\libs\avcodec\`
+
+## Windows
+
+* Use the project generator and add the ofxAvCodec library. Then open in VS
+* Right click your solution, select properties. Make sure to have the *all configurations* option selected. 
+* `Configuration > Linker > Extended > SAFESH:NO`<br>
+  set to no (if you cant find the option add `/SAFESEH:NO` as a custom linker flag)
+* Still in VS, navigate to <br>
+  `emptyExample > addons > ofxAvCodec > libs > avcodec`<br>
+  `Right click > Add Elements > Add existing elements` <br>
+  Add all .lib files from addons/ofxAvCodec/libs/avcodec/lib/vs/Win32 (or x64)
+
+
+
+# Examples
+
+## Example Read
 
 
 `ofxAvAudioPlayer` can read an audio file and prepare it for playback through openframeworks audio callback. Before loading the sound you can tell the player your preferred number of output channels and samplerate, all the resampling and channel conversions are done automatically. 
@@ -50,8 +65,8 @@ Example Read
 	}
 
 
-Example Write
----
+## Example Write
+
 `ofxAvAudioWriter` needs to be set up with a sample rate and number of channels. After that you can open the file and start writing samples into it. Don't forget to close the file when you are done! 
 
 	ofxAvAudioWriter writer;
@@ -75,8 +90,7 @@ Example Write
 	writer.close();
 
 
-Metadata Read/Update
----
+## Metadata Read/Update
 
 
 	// Read metadata without reading the file
@@ -89,9 +103,7 @@ Metadata Read/Update
 	ofxAvMetadata::update("myfile.wav", myMeta ); 
 
 
-Waveform preview
----
-
+## Waveform preview
 
 	int resolution = 100; // number of datapoints
 	int width = 400; // display width
@@ -107,25 +119,9 @@ Waveform preview
 <img src="docs/waveform.png" width="520">
 
 
-Windows
----
 
-Currently there is still some manual work involved: 
+# License
 
-* Use the project generator and add the ofxAvCodec library. Then open if VS
-* Right click your solution, select properties. Make sure to have the *all configurations* option selected. 
-* `Configuration > C++ > General > additional include directories`<br>
-  Remove the directories include\\*, but keep the include directory itself in the list
-* `Configuration > Linker > Extended > SAFESH:NO`<br>
-  set to no (if you cant find the option add `/SAFESEH:NO` as a custom linker flag)
-* Still in VS, navigate to <br>
-  `emptyExample > addons > ofxAvCodec > libs > avcodec`<br>
-  `Right click > Add Elements > Add existing elements` <br>
-  Add all .lib files from addons/ofxAvCodec/libs/avcodec/lib/win32 (or win64)
-
-
-License
----
 libavcodec comes with a GPL/LGPL license. For convenience the precompiled binaries are included (compiled as shared libs, gpl plugins not enabled). I hope I made no mistake, FFmpeg maintains a hall of shame and you and I don't want to end up there. To be safe you could make your own build. To do so follow the notes in ffmpeg_src/readme.txt. 
 
 
