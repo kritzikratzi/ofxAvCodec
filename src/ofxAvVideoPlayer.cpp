@@ -18,6 +18,30 @@ using namespace std;
 
 #define die(msg) { unload(); cerr << msg << endl; return false; }
 
+// this holds an image
+class ofxAvVideoData{
+public:
+	uint8_t *video_dst_data[4];
+	int      video_dst_linesize[4];
+	int video_dst_bufsize;
+	bool allocated;
+	double pts;
+	
+	ofxAvVideoData() : allocated(false), video_dst_bufsize(0){}
+};
+
+class ofxAvAudioData{
+public:
+	double pts;
+	// contains audio data, always in interleaved float format
+	int decoded_buffer_pos;
+	int decoded_buffer_len;
+	float decoded_buffer[AVCODEC_MAX_AUDIO_FRAME_SIZE];
+	
+	ofxAvAudioData() : decoded_buffer_len(0){}
+};
+
+
 ofxAvVideoPlayer::ofxAvVideoPlayer(){
 	ofxAvUtils::init();
 	// default audio settings
@@ -119,12 +143,17 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 		width = video_context->width;
 		height = video_context->height;
 		pix_fmt = AV_PIX_FMT_RGB24;
-		int ret = av_image_alloc(video_dst_data, video_dst_linesize,
-							 width, height, pix_fmt, 1);
-		if (ret < 0) {
-			die("Could not allocate raw video buffer");
+		// allocate a bunch of images!
+		for( int i = 0; i < 10; i++ ){
+			ofxAvVideoData * data = new ofxAvVideoData();
+			int ret = av_image_alloc(data->video_dst_data, data->video_dst_linesize,
+									 width, height, pix_fmt, 1);
+			if (ret < 0) {
+				die("Could not allocate raw video buffer");
+			}
+			data->video_dst_bufsize = ret;
+			video_buffers.push_back(data);
 		}
-		video_dst_bufsize = ret;
 	}
 	
 	if( video_stream_idx == -1 ){
@@ -143,11 +172,12 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	//TODO: we don't want to require an audio stream
 	//when reading video
 	if (audio_stream_idx == -1) {
-		die("Could not find an audio stream");
+		//die("Could not find an audio stream");
+		//nope, not a problem anymore!
 	}
  
 	// Find the apropriate codec and open it
-	if( forceNativeFormat ){
+	if( forceNativeFormat && audio_stream_idx >= 0){
 		output_sample_rate = audio_context->sample_rate;
 		output_channel_layout = audio_context->channel_layout;
 		if( output_channel_layout == 0 ){
@@ -180,6 +210,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	decode_next_frame();
 	duration = av_time_to_millis(fmt_ctx->streams[audio_stream_idx]->duration);
 	
+	decoderThread = thread(&ofxAvVideoPlayer::run_decoder, this);
 	return true;
 }
 
@@ -203,12 +234,31 @@ void ofxAvVideoPlayer::unloadSound(){
 }
 
 void ofxAvVideoPlayer::unload(){
+	if( decoderThread.joinable() ){
+		decoderThread.join();
+	}
+	
 	len = 0;
 	fileLoaded = false;
 	isPlaying = false;
 	packet_data_size = 0;
-	decoded_buffer_pos = 0;
-	decoded_buffer_len = 0;
+	
+	audio_queue_mutex.lock();
+	while( audio_queue.size() > 0 ){
+		ofxAvAudioData * data = audio_queue.front();
+		delete data;
+		audio_queue.pop();
+	}
+	audio_frames_available = 0;
+	audio_queue_mutex.unlock();
+	video_buffers_mutex.lock();
+	for( ofxAvVideoData * data : video_buffers ){
+		av_freep(&data->video_dst_data[0]);
+		delete data;
+	}
+	video_buffers.clear();
+	video_buffers_mutex.unlock();
+	
 	next_seekTarget = -1;
 	video_stream_idx = -1;
 	audio_stream_idx = -1;
@@ -247,38 +297,22 @@ void ofxAvVideoPlayer::unload(){
 
 int ofxAvVideoPlayer::audioOut(float *output, int bufferSize, int nChannels){
 	if( !fileLoaded ){ return 0; }
-	
-	if( next_seekTarget >= 0 ){
-		//av_seek_frame(fmt_ctx,-1,next_seekTarget,AVSEEK_FLAG_ANY);
-		avformat_seek_file(fmt_ctx,audio_stream_idx,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_ANY);
-		next_seekTarget = -1;
-		avcodec_flush_buffers(audio_context);
-		decode_next_frame();
-	}
-	
 	if( !isPlaying ){ return 0; }
 	
 	
-	int max_read_packets = 4;
-	//todo: wtf?
-	if( decoded_frame && decoded_frame);
-	// number of samples read per channel (up to bufferSize)
 	int num_samples_read = 0;
 	
-	if( decoded_frame == NULL ){
-		decode_next_frame();
-	}
+	lock_guard<mutex> lock(audio_queue_mutex);
 	
-	while( decoded_frame != NULL && max_read_packets > 0 ){
-		max_read_packets --;
-		
+	while( audio_queue.size() > 0 ){
+		ofxAvAudioData * data = audio_queue.front();
 		int missing_samples = bufferSize*nChannels - num_samples_read;
-		int available_samples = decoded_buffer_len - decoded_buffer_pos;
+		int available_samples = data->decoded_buffer_len - data->decoded_buffer_pos;
 		if( missing_samples > 0 && available_samples > 0 ){
 			int samples = min( missing_samples, available_samples );
 			
 			if( volume != 0 ){
-				memcpy(output+num_samples_read, decoded_buffer+decoded_buffer_pos, samples*sizeof(float) );
+				memcpy(output+num_samples_read, data->decoded_buffer+data->decoded_buffer_pos, samples*sizeof(float) );
 			}
 			
 			if( volume != 1 && volume != 0 ){
@@ -287,21 +321,26 @@ int ofxAvVideoPlayer::audioOut(float *output, int bufferSize, int nChannels){
 				}
 			}
 			
-			decoded_buffer_pos += samples;
+			data->decoded_buffer_pos += samples;
 			num_samples_read += samples;
-		}
-		
-		if( num_samples_read >= bufferSize*nChannels ){
-			return bufferSize;
-		}
-		else{
-			decode_next_frame();
+			audio_frames_available -= num_samples_read/nChannels;
+			//TODO: increment timestamp?
+			if( data->decoded_buffer_pos >= data->decoded_buffer_len ){
+				audio_queue.pop();
+				delete data;
+			}
+			
+			if( num_samples_read >= bufferSize*nChannels ){
+				return bufferSize;
+			}
 		}
 	}
 	
+	cout << "not enough samples" << endl;
 	return num_samples_read/nChannels;
 }
 
+// this is _mostly_ only called from the special happy thread!
 bool ofxAvVideoPlayer::decode_next_frame(){
 	av_free_packet(&packet);
 	int res = av_read_frame(fmt_ctx, &packet);
@@ -330,7 +369,6 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 			}
 			
 			if (got_frame) {
-				
 				if( swr_context != NULL && output_config_changed ){
 					output_config_changed = false;
 					if( swr_context ){
@@ -360,12 +398,16 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 				/* if a frame has been decoded, resample to desired rate */
 				int samples_per_channel = AVCODEC_MAX_AUDIO_FRAME_SIZE/output_num_channels;
 				//samples_per_channel = 512;
-				uint8_t * out = (uint8_t*)decoded_buffer;
+				ofxAvAudioData * data = new ofxAvAudioData();
+				uint8_t * out = (uint8_t*)data->decoded_buffer;
 				int samples_converted = swr_convert(swr_context,
 													(uint8_t**)&out, samples_per_channel,
 													(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
-				decoded_buffer_len = samples_converted*output_num_channels;
-				decoded_buffer_pos = 0;
+				data->decoded_buffer_len = samples_converted*output_num_channels;
+				data->decoded_buffer_pos = 0;
+				lock_guard<mutex> lock(audio_queue_mutex);
+				audio_frames_available += samples_converted;
+				audio_queue.push(data);
 			}
 			
 			//todo: what does this do, really?
@@ -426,16 +468,17 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 				/*av_image_copy(video_dst_data, video_dst_linesize,
 							  (const uint8_t **)(decoded_frame->data), decoded_frame->linesize,
 							  pix_fmt, width, height);*/
+				lock_guard<mutex> lock(video_buffers_mutex);
+				int index = (video_buffers_pos + video_buffers_size)%video_buffers.size();
+				video_buffers_size ++;
+				ofxAvVideoData * data = video_buffers[index];
 				sws_scale(sws_context,
 						  // src slice / src stride
 						  decoded_frame->data, decoded_frame->linesize,
 						  // src slice y / src slice h
 						  0, height,
 						  // destinatin / destination stride
-						  video_dst_data, video_dst_linesize );
-				
-				cout << "ok?" << endl;
-				
+						  data->video_dst_data, data->video_dst_linesize );
 			}
 			
 			return true;
@@ -450,8 +493,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 	else{
 		// no data read...
 		packet_data_size = 0;
-		decoded_buffer_len = 0;
-		decoded_buffer_pos = 0;
+		//TODO: clear out all buffers!
 		if( isLooping ){
 			avformat_seek_file(fmt_ctx,audio_stream_idx,0,0,0,AVSEEK_FLAG_ANY);
 			avcodec_flush_buffers(audio_context);
@@ -566,5 +608,43 @@ void ofxAvVideoPlayer::update(){
 	if( !texture.isAllocated() ){
 		texture.allocate( width, height, GL_RGB );
 	}
-	texture.loadData(video_dst_data[0], width, height, GL_RGB); 
+	
+	if( video_buffers_size > 0 ){
+		lock_guard<mutex> lock(video_buffers_mutex);
+		int index = video_buffers_pos;
+		video_buffers_pos ++;
+		if( video_buffers_pos >= video_buffers.size() ){
+			video_buffers_pos -= (int)video_buffers.size();
+		}
+		video_buffers_size --;
+		ofxAvVideoData * data = video_buffers[index];
+		texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
+	}
+}
+
+void ofxAvVideoPlayer::run_decoder(){
+	while( isLoaded() ){
+		if( next_seekTarget >= 0 ){
+			//av_seek_frame(fmt_ctx,-1,next_seekTarget,AVSEEK_FLAG_ANY);
+			avformat_seek_file(fmt_ctx,audio_stream_idx,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_ANY);
+			next_seekTarget = -1;
+			avcodec_flush_buffers(audio_context);
+			lock_guard<mutex> lock(audio_queue_mutex);
+			while( audio_queue.size() > 0 ){
+				ofxAvAudioData * data = audio_queue.front();
+				delete data;
+				audio_queue.pop();
+				audio_frames_available = 0;
+			}
+			lock_guard<mutex> videoLock(video_buffers_mutex);
+			video_buffers_size = 0;
+		}
+		
+		if( (audio_frames_available < output_sample_rate*0.1 || video_buffers_size < 3) && isPlaying ){
+			decode_next_frame();
+		}
+		else{
+			ofSleepMillis(10);
+		}
+	}
 }

@@ -1,9 +1,14 @@
 //
 //  AvCodecVideoPlayer.h
-//  Oscilloscope
 //
-//  Created by Hansi on 22.06.15.
+//  The video player always uses a thread to fetch the data.
+//  You have to decide for on of two time stepping mechanisms:
+//  1. Synchronize by audio -- calling videoPlayer.audioOut(...) is enough
+//  2. Synchronize by video -- call videoPlayer.update(ofGetLastFrameTime()).
 //
+//  You have to use one of the two methods, never both!
+//
+//  Created by Hansi on 30.04.16.
 //
 
 #ifndef Oscilloscope_AvCodecVideoPlayer_h
@@ -11,6 +16,9 @@
 
 #include <string>
 #include <iostream>
+#include <queue>
+#include <mutex>
+#include <thread>
 
 #include <math.h>
 #include <map>
@@ -28,14 +36,12 @@ extern "C"{
 #include <libavutil/imgutils.h>
 }
 
-//TODO: should/can we move this to cpp file?
-//ok, be careful with these.
-//with flac files written by audacity it's actually quite easy to cause serious read troubles
-//when using frame=192k, inbuf=20480, thres=4096
 #define AVCODEC_MAX_AUDIO_FRAME_SIZE (192000)
 #define AVCODEC_AUDIO_INBUF_SIZE (20480)
 #define AVCODEC_AUDIO_REFILL_THRESH (4096*3)
 
+class ofxAvAudioData;
+class ofxAvVideoData;
 class ofxAvVideoPlayer{
 public:
 	
@@ -183,9 +189,6 @@ private:
 	int video_stream_idx;
 	int audio_stream_idx; 
 	
-	uint8_t *video_dst_data[4];
-	int      video_dst_linesize[4];
-	int video_dst_bufsize;
 	SwsContext * sws_context; // context for video resampling/color conversion
 	
 	SwrContext * swr_context; // context for audio resampling/channel conversion
@@ -195,17 +198,26 @@ private:
 	
 	int64_t next_seekTarget;
 	
-	// contains audio data, always in interleaved float format
-	int decoded_buffer_pos;
-	int decoded_buffer_len;
-	float decoded_buffer[AVCODEC_MAX_AUDIO_FRAME_SIZE];
-	
 	bool output_config_changed;
 	
 	int width;
 	int height;
 	
 	ofTexture texture;
+	
+	
+	mutex video_buffers_mutex;
+	vector<ofxAvVideoData*> video_buffers;
+	int video_buffers_pos;
+	int video_buffers_read_pos;
+	int video_buffers_size;
+	
+	mutex audio_queue_mutex;
+	queue<ofxAvAudioData*> audio_queue;
+	int audio_frames_available; // total num samples still available on audio queue
+	
+	thread decoderThread;
+	void run_decoder();
 };
 
 #endif
