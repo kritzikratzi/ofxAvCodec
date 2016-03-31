@@ -223,6 +223,11 @@ private:
 	
 	thread decoderThread;
 	void run_decoder();
+	
+	uint64_t last_pts;
+	double last_t;
+	
+	bool restart_loop; 
 };
 
 #endif
