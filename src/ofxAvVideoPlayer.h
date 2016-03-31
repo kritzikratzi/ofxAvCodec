@@ -45,6 +45,7 @@ class ofxAvVideoData;
 class ofxAvVideoPlayer{
 public:
 	
+	
 	ofxAvVideoPlayer();
 	~ofxAvVideoPlayer();
 	
@@ -52,7 +53,12 @@ public:
 	bool setupAudioOut( int numChannels, int sampleRate );
 	// call this from the audioOut callback.
 	// returns the number of frames (0...bufferSize) that were played.
-	int audioOut( float * output, int bufferSize, int nChannels );
+	struct AudioResult{
+		int numFrames; // = numSamples/nChannels. number of audio frames that was written
+		uint64_t pts; // presentation timestamp in sample frames
+		double t; // timecode in seconds
+	};
+	AudioResult audioOut( float * output, int bufferSize, int nChannels );
 	
 	/// \brief Tells the sound player which file to play.
 	///
@@ -64,9 +70,6 @@ public:
 	
 	/// \brief Stops and unloads the current sound.
 	void unload();
-	
-	bool __attribute__ ((deprecated)) loadSound(std::string fileName, bool stream = true);
-	void __attribute__ ((deprecated))unloadSound();
 	
 	/// \brief Starts playback.
 	void play();
@@ -155,6 +158,8 @@ public:
 	
 	// \brief returns the video texture
 	ofTexture &getTexture();
+	int getFrameNumber();
+	double getFps(); 
 	
 	// \brief updates the video textures
 	void update();

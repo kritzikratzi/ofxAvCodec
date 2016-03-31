@@ -25,14 +25,18 @@ public:
 	int      video_dst_linesize[4];
 	int video_dst_bufsize;
 	bool allocated;
-	double pts;
+	uint64_t pts;
+	double t;
+	
 	
 	ofxAvVideoData() : allocated(false), video_dst_bufsize(0){}
 };
 
 class ofxAvAudioData{
 public:
-	double pts;
+	uint64_t pts;
+	uint64_t pts_native;
+	double t;
 	// contains audio data, always in interleaved float format
 	int decoded_buffer_pos;
 	int decoded_buffer_len;
@@ -71,11 +75,6 @@ ofxAvVideoPlayer::ofxAvVideoPlayer(){
 ofxAvVideoPlayer::~ofxAvVideoPlayer(){
 	unload();
 }
-
-bool ofxAvVideoPlayer::loadSound(string fileName, bool stream){
-	return load(fileName, stream);
-}
-
 
 static int open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type){
 	int ret, stream_index;
@@ -229,19 +228,16 @@ bool ofxAvVideoPlayer::setupAudioOut( int numChannels, int sampleRate ){
 	return true;
 }
 
-void ofxAvVideoPlayer::unloadSound(){
-	unload();
-}
-
 void ofxAvVideoPlayer::unload(){
+	fileLoaded = false;
+	isPlaying = false;
+
 	if( decoderThread.joinable() ){
 		decoderThread.join();
 	}
 	
-	len = 0;
-	fileLoaded = false;
-	isPlaying = false;
 	packet_data_size = 0;
+	len = 0;
 	
 	audio_queue_mutex.lock();
 	while( audio_queue.size() > 0 ){
@@ -256,6 +252,9 @@ void ofxAvVideoPlayer::unload(){
 		av_freep(&data->video_dst_data[0]);
 		delete data;
 	}
+	video_buffers_read_pos = 0;
+	video_buffers_size = 0;
+	video_buffers_pos = 0;
 	video_buffers.clear();
 	video_buffers_mutex.unlock();
 	
@@ -295,14 +294,22 @@ void ofxAvVideoPlayer::unload(){
 	}
 }
 
-int ofxAvVideoPlayer::audioOut(float *output, int bufferSize, int nChannels){
-	if( !fileLoaded ){ return 0; }
-	if( !isPlaying ){ return 0; }
+ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int bufferSize, int nChannels){
+	AudioResult result{0,0,0};
+	if( !fileLoaded ){ return result; }
+	if( !isPlaying ){ return result; }
 	
 	
 	int num_samples_read = 0;
 	
 	lock_guard<mutex> lock(audio_queue_mutex);
+	uint64_t pts = 0;
+	double t;
+	if( audio_queue.size() > 0 ){
+		ofxAvAudioData * data = audio_queue.front();
+		result.pts = data->pts + data->decoded_buffer_pos/output_num_channels;
+		result.t = data->t + data->decoded_buffer_pos/output_num_channels/(double)output_sample_rate;
+	}
 	
 	while( audio_queue.size() > 0 ){
 		ofxAvAudioData * data = audio_queue.front();
@@ -331,13 +338,15 @@ int ofxAvVideoPlayer::audioOut(float *output, int bufferSize, int nChannels){
 			}
 			
 			if( num_samples_read >= bufferSize*nChannels ){
-				return bufferSize;
+				result.numFrames = bufferSize;
+				return result;
 			}
 		}
 	}
 	
 	cout << "not enough samples" << endl;
-	return num_samples_read/nChannels;
+	result.numFrames = num_samples_read/nChannels;
+	return result;
 }
 
 // this is _mostly_ only called from the special happy thread!
@@ -405,6 +414,12 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 													(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
 				data->decoded_buffer_len = samples_converted*output_num_channels;
 				data->decoded_buffer_pos = 0;
+				if(packet.pts != AV_NOPTS_VALUE) {
+					data->pts = packet.pts*output_sample_rate*av_q2d(audio_stream->time_base);
+					data->pts_native = packet.pts;
+					data->t = av_q2d(audio_stream->time_base)*packet.pts;
+				}
+
 				lock_guard<mutex> lock(audio_queue_mutex);
 				audio_frames_available += samples_converted;
 				audio_queue.push(data);
@@ -469,7 +484,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 							  (const uint8_t **)(decoded_frame->data), decoded_frame->linesize,
 							  pix_fmt, width, height);*/
 				lock_guard<mutex> lock(video_buffers_mutex);
-				int index = (video_buffers_pos + video_buffers_size)%video_buffers.size();
+				int index = (video_buffers_pos + video_buffers_size+1)%video_buffers.size();
 				video_buffers_size ++;
 				ofxAvVideoData * data = video_buffers[index];
 				sws_scale(sws_context,
@@ -479,6 +494,10 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 						  0, height,
 						  // destinatin / destination stride
 						  data->video_dst_data, data->video_dst_linesize );
+				if(packet.pts != AV_NOPTS_VALUE) {
+					data->pts = packet.pts;
+					data->t = av_q2d(video_stream->time_base)*packet.pts;
+				}
 			}
 			
 			return true;
@@ -604,8 +623,21 @@ ofTexture & ofxAvVideoPlayer::getTexture(){
 	return texture;
 }
 
+int ofxAvVideoPlayer::getFrameNumber(){
+	if( !isLoaded() ) return 0;
+	// this is not ideal! in fact: it's simply not working yet! 
+	lock_guard<mutex> lock(video_buffers_mutex);
+	cout << video_buffers[video_buffers_read_pos]->t << endl;
+	return video_buffers[video_buffers_read_pos]->t*av_q2d(video_stream->r_frame_rate);
+}
+
+double ofxAvVideoPlayer::getFps(){
+	if( !isLoaded() ) return 0; 
+	return av_q2d(video_stream->r_frame_rate); 
+}
+
 void ofxAvVideoPlayer::update(){
-	if( !texture.isAllocated() ){
+	if( !texture.isAllocated() || texture.getWidth() != width || texture.getHeight() != height ){
 		texture.allocate( width, height, GL_RGB );
 	}
 	
@@ -619,6 +651,7 @@ void ofxAvVideoPlayer::update(){
 		video_buffers_size --;
 		ofxAvVideoData * data = video_buffers[index];
 		texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
+		video_buffers_read_pos = video_buffers_pos;
 	}
 }
 
@@ -640,7 +673,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			video_buffers_size = 0;
 		}
 		
-		if( (audio_frames_available < output_sample_rate*0.1 || video_buffers_size < 3) && isPlaying ){
+		if( (audio_frames_available < output_sample_rate*0.1 && video_buffers_size < 3) && isPlaying ){
 			decode_next_frame();
 		}
 		else{
