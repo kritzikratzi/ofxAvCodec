@@ -114,8 +114,7 @@ static int open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AV
 
 bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	unload();
-	
-	string fileNameAbs = ofToDataPath(fileName,true);
+	fileNameAbs = ofToDataPath(fileName,true);
 	const char * input_filename = fileNameAbs.c_str();
 	// the first finds the right codec, following  https://blinkingblip.wordpress.com/2011/10/08/decoding-and-playing-an-audio-stream-using-libavcodec-libavformat-and-libao/
 	// and also demuxing_decoding.c in the ffmpeg examples
@@ -239,12 +238,14 @@ bool ofxAvVideoPlayer::setupAudioOut( int numChannels, int sampleRate ){
 }
 
 void ofxAvVideoPlayer::unload(){
+	fileNameAbs = "";
 	fileLoaded = false;
 	isPlaying = false;
-
+	wantsUnload = true;
 	if( decoderThread.joinable() ){
 		decoderThread.join();
 	}
+	wantsUnload = false;
 	
 	packet_data_size = 0;
 	len = 0;
@@ -699,11 +700,11 @@ void ofxAvVideoPlayer::update(){
 }
 
 void ofxAvVideoPlayer::run_decoder(){
-	while( isLoaded() ){
+	while( isLoaded() && !wantsUnload){
 		if( restart_loop ){
 			restart_loop = false;
 			// wait until we run out of samples!
-			while( audio_frames_available > 0 ){
+			while( audio_frames_available > 0 && !wantsUnload){
 				ofSleepMillis(1);
 			}
 			next_seekTarget = 0;
@@ -735,4 +736,8 @@ void ofxAvVideoPlayer::run_decoder(){
 			ofSleepMillis(10);
 		}
 	}
+}
+
+string ofxAvVideoPlayer::getFile(){
+	return fileNameAbs;
 }

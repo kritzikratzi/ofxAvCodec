@@ -160,6 +160,7 @@ public:
 	ofTexture &getTexture();
 	int getFrameNumber();
 	double getFps(); 
+	string getFile();
 	
 	// \brief updates the video textures
 	void update();
@@ -170,6 +171,7 @@ private:
 	bool decode_next_frame();
 	
 	bool fileLoaded;
+	bool wantsUnload; 
 	bool isPlaying;
 	bool isLooping;
 	
@@ -227,7 +229,8 @@ private:
 	uint64_t last_pts;
 	double last_t;
 	
-	bool restart_loop; 
+	bool restart_loop;
+	string fileNameAbs; 
 };
 
 #endif
