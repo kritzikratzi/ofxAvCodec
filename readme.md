@@ -1,6 +1,30 @@
 ofxAvCodec
 ===
 
+# Announcement 
+
+This library will soon be renamed and split in two libraries: 
+
+* **ofxFFMpegUtils** will contain the source code from this repository (readers and writers for audio/video writer)
+* **ofxFFMpegLibs** will provide only the ffmpeg headers and binaries for as many platforms as possible. 
+  
+  
+The reason behind this is that it will allow me to quickly switch between different versions of the ffmpeg builds, and it will make it 
+possible to easily use your own minimized builds only supporting the necessary encoders/decoders. 
+
+Keep watching this readme for further updates. 
+
+
+# Also announcements
+
+
+* The osx version in first binary release contains an accidental dependency to libsdl and libxz. 
+* Development of video support takes place on the `video` branch. 
+
+
+### About
+
+
 So... what is it? <br>
 A small wrapper around libavcodec - the magic library that is painful to use, but basically the only cross platform way to read and write in many different media formats. 
 
