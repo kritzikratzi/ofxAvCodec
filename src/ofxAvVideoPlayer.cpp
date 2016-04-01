@@ -674,7 +674,7 @@ void ofxAvVideoPlayer::update(){
 		double bestDistance = 10;
 		for( ofxAvVideoData * buffer : video_buffers ){
 			double distance = fabs(buffer->t - last_t);
-			if( distance < bestDistance ){
+			if( buffer->t > -1 && distance < bestDistance ){
 				data = buffer;
 				bestDistance = distance;
 			}
@@ -713,7 +713,6 @@ void ofxAvVideoPlayer::run_decoder(){
 		if( next_seekTarget >= 0 ){
 			//av_seek_frame(fmt_ctx,-1,next_seekTarget,AVSEEK_FLAG_ANY);
 			avformat_seek_file(fmt_ctx,audio_stream_idx,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_ANY);
-			next_seekTarget = -1;
 			avcodec_flush_buffers(audio_context);
 
 			video_buffers_mutex.lock();
@@ -724,9 +723,19 @@ void ofxAvVideoPlayer::run_decoder(){
 				audio_queue.pop();
 				audio_frames_available = 0;
 			}
+			for( ofxAvVideoData * data : video_buffers ){
+				data->t = -1;
+			}
 			video_buffers_size = 0;
 			video_buffers_mutex.unlock();
 			audio_queue_mutex.unlock();
+			
+			if( next_seekTarget == 0 ){
+				for( int i  =0; i < 10; i++ ){
+					decode_next_frame();
+				}
+			}
+			next_seekTarget = -1;
 		}
 		
 		if( (audio_frames_available < output_sample_rate*1.0 ) && isPlaying ){
