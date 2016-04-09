@@ -23,6 +23,7 @@ fi
 
 echo Zipping up the ffmpeg source ...
 pushd ../ffmpeg_src/ffmpeg >/dev/null
+make clean
 commit=$(git rev-parse HEAD)
 git archive --format=tar --prefix=ffmpeg/ HEAD | gzip >../../libs/work/ffmpeg-src-$commit.tgz
 popd >/dev/null
