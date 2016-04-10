@@ -143,7 +143,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 		pix_fmt = AV_PIX_FMT_RGB24;
 		// allocate a bunch of images!
 		// a good second is a good buffer length
-		for( int i = 0; i < 50; i++ ){
+		for( int i = 0; i < 30; i++ ){
 			ofxAvVideoData * data = new ofxAvVideoData();
 			int ret = av_image_alloc(data->video_dst_data, data->video_dst_linesize,
 									 width, height, pix_fmt, 1);
@@ -659,7 +659,7 @@ void ofxAvVideoPlayer::update(){
 		texture.allocate( width, height, GL_RGB );
 	}
 	
-	if( video_buffers_size > 0 ){
+	if( true ){
 		lock_guard<mutex> lock(video_buffers_mutex);
 
 		int index = video_buffers_pos;
@@ -672,14 +672,32 @@ void ofxAvVideoPlayer::update(){
 		// ok, really... fudge the index, find the best buffer!
 		ofxAvVideoData * data = video_buffers[index];
 		double bestDistance = 10;
+		
+		int j = 0, bestJ = 0;
 		for( ofxAvVideoData * buffer : video_buffers ){
 			double distance = fabs(buffer->t - last_t);
 			if( buffer->t > -1 && distance < bestDistance ){
 				data = buffer;
 				bestDistance = distance;
+				bestJ = j;
 			}
 			
+			j++;
 		}
+		
+		for( int i = 0; i < video_buffers.size(); i++ ){
+			if( i == bestJ ) ofSetColor(255);
+			else ofSetColor(200);
+			ofDrawBitmapString(ofToString(video_buffers[i]->t), 10+40*i, 200);
+		}
+		
+		if( bestDistance > 1 ){
+			// more than 1 sec out of sec. fuck!!!
+			cout << "over 1 sec out of sync. shit!" << endl;
+			return;
+		}
+		
+		ofDrawBitmapString(last_t, 10+40*bestJ, 220);
 		/*for( ofxAvVideoData * buffer : video_buffers ){
 			if( data == buffer ) cout << "**";
 			cout << std::setprecision(2) << buffer->t << ", ";
@@ -694,6 +712,7 @@ void ofxAvVideoPlayer::update(){
 		cout << last_t << endl;*/
 
 		//cout << last_t << "offset = " << (data->t-last_t) << endl;
+		cout << data->t << endl;
 		texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
 		video_buffers_read_pos = video_buffers_pos;
 	}
@@ -712,11 +731,25 @@ void ofxAvVideoPlayer::run_decoder(){
 		
 		if( next_seekTarget >= 0 ){
 			//av_seek_frame(fmt_ctx,-1,next_seekTarget,AVSEEK_FLAG_ANY);
-			avformat_seek_file(fmt_ctx,audio_stream_idx,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_ANY);
+/*			avcodec_flush_buffers(video_context);
 			avcodec_flush_buffers(audio_context);
-
+			avformat_seek_file(fmt_ctx,audio_stream_idx,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_BACKWARD);
+			avformat_seek_file(fmt_ctx,video_stream_idx,0,next_seekTarget,next_seekTarget,AVSEEK_FLAG_BACKWARD);
+*/
 			video_buffers_mutex.lock();
 			audio_queue_mutex.lock();
+			
+			int stream_index = audio_stream_idx;
+			avcodec_flush_buffers(video_context);
+			avcodec_flush_buffers(audio_context);
+			int64_t seek_target= av_rescale_q(seek_target, AV_TIME_BASE_Q, fmt_ctx->streams[stream_index]->time_base);
+			if(av_seek_frame(fmt_ctx, stream_index,
+							 seek_target, AVSEEK_FLAG_BACKWARD) < 0) {
+				cerr << "error while seeking\n" << fileNameAbs << endl;
+				last_t = 0;
+				last_pts = 0;
+			}
+			
 			while( audio_queue.size() > 0 ){
 				ofxAvAudioData * data = audio_queue.front();
 				delete data;
@@ -738,7 +771,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			next_seekTarget = -1;
 		}
 		
-		if( (audio_frames_available < output_sample_rate*1.0 ) && isPlaying ){
+		if( (audio_frames_available < output_sample_rate*0.3 ) && isPlaying ){
 			decode_next_frame();
 		}
 		else{
