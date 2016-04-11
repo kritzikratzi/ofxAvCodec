@@ -55,7 +55,7 @@ public:
 	// returns the number of frames (0...bufferSize) that were played.
 	struct AudioResult{
 		int numFrames; // = numSamples/nChannels. number of audio frames that was written
-		uint64_t pts; // presentation timestamp in sample frames
+		int64_t pts; // presentation timestamp in sample frames
 		double t; // timecode in seconds
 	};
 	AudioResult audioOut( float * output, int bufferSize, int nChannels );
@@ -226,9 +226,10 @@ private:
 	thread decoderThread;
 	void run_decoder();
 	
-	uint64_t last_pts;
+	int64_t last_pts;
 	double last_t;
 	
+	bool needsMoreVideo;
 	bool restart_loop;
 	string fileNameAbs; 
 };

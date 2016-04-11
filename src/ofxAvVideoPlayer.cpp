@@ -25,7 +25,7 @@ public:
 	int      video_dst_linesize[4];
 	int video_dst_bufsize;
 	bool allocated;
-	uint64_t pts;
+	int64_t pts;
 	double t;
 	
 	
@@ -34,8 +34,8 @@ public:
 
 class ofxAvAudioData{
 public:
-	uint64_t pts;
-	uint64_t pts_native;
+	int64_t pts;
+	int64_t pts_native;
 	double t;
 	// contains audio data, always in interleaved float format
 	int decoded_buffer_pos;
@@ -431,9 +431,9 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 				data->decoded_buffer_len = samples_converted*output_num_channels;
 				data->decoded_buffer_pos = 0;
 				if(packet.pts != AV_NOPTS_VALUE) {
-					data->pts = packet.pts*output_sample_rate*av_q2d(audio_stream->time_base);
-					data->pts_native = packet.pts;
-					data->t = av_q2d(audio_stream->time_base)*packet.pts;
+					data->pts = (decoded_frame->pkt_pts)*output_sample_rate*av_q2d(audio_stream->time_base);
+					data->pts_native = decoded_frame->pkt_pts;
+					data->t = av_q2d(audio_stream->time_base)*(decoded_frame->pkt_pts);
 				}
 
 				lock_guard<mutex> lock(audio_queue_mutex);
@@ -500,8 +500,8 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 							  (const uint8_t **)(decoded_frame->data), decoded_frame->linesize,
 							  pix_fmt, width, height);*/
 				lock_guard<mutex> lock(video_buffers_mutex);
-				int index = (video_buffers_pos + video_buffers_size+1)%video_buffers.size();
-				video_buffers_size ++;
+				int index = (video_buffers_pos)%video_buffers.size();
+				video_buffers_pos ++;
 				ofxAvVideoData * data = video_buffers[index];
 				sws_scale(sws_context,
 						  // src slice / src stride
@@ -510,9 +510,11 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 						  0, height,
 						  // destinatin / destination stride
 						  data->video_dst_data, data->video_dst_linesize );
+				
+				cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
 				if(packet.pts != AV_NOPTS_VALUE) {
-					data->pts = packet.dts;
-					data->t = av_q2d(video_stream->time_base)*packet.dts;
+					data->pts = decoded_frame->pkt_pts;
+					data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
 				}
 			}
 			
@@ -545,7 +547,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 }
 
 unsigned long long ofxAvVideoPlayer::av_time_to_millis( int64_t av_time ){
-	return av_rescale(1000*av_time,(uint64_t)fmt_ctx->streams[audio_stream_idx]->time_base.num,fmt_ctx->streams[audio_stream_idx]->time_base.den);
+	return av_rescale(1000*av_time,fmt_ctx->streams[audio_stream_idx]->time_base.num,fmt_ctx->streams[audio_stream_idx]->time_base.den);
 	//alternative:
 	//return av_time*1000*av_q2d(fmt_ctx->streams[audio_stream_id]->time_base);
 }
@@ -554,7 +556,7 @@ int64_t ofxAvVideoPlayer::millis_to_av_time( unsigned long long ms ){
 	//TODO: fix conversion
 	/*	int64_t timeBase = (int64_t(audio_context->time_base.num) * AV_TIME_BASE) / int64_t(audio_context->time_base.den);
 	 int64_t seekTarget = int64_t(ms) / timeBase;*/
-	return av_rescale(ms,fmt_ctx->streams[audio_stream_idx]->time_base.den,(uint64_t)fmt_ctx->streams[audio_stream_idx]->time_base.num)/1000;
+	return av_rescale(ms,fmt_ctx->streams[audio_stream_idx]->time_base.den,fmt_ctx->streams[audio_stream_idx]->time_base.num)/1000;
 }
 
 
@@ -645,7 +647,6 @@ int ofxAvVideoPlayer::getFrameNumber(){
 	if( !isLoaded() ) return 0;
 	// this is not ideal! in fact: it's simply not working yet! 
 	lock_guard<mutex> lock(video_buffers_mutex);
-	cout << video_buffers[video_buffers_read_pos]->t << endl;
 	return video_buffers[video_buffers_read_pos]->t*av_q2d(video_stream->r_frame_rate);
 }
 
@@ -662,20 +663,15 @@ void ofxAvVideoPlayer::update(){
 	if( true ){
 		lock_guard<mutex> lock(video_buffers_mutex);
 
-		int index = video_buffers_pos;
-		video_buffers_pos ++;
-		if( video_buffers_pos >= video_buffers.size() ){
-			video_buffers_pos -= (int)video_buffers.size();
-		}
-		video_buffers_size --;
-		
 		// ok, really... fudge the index, find the best buffer!
-		ofxAvVideoData * data = video_buffers[index];
+		ofxAvVideoData * data = video_buffers[0];
 		double bestDistance = 10;
 		
+		bool needsMoreVideo = true;
 		int j = 0, bestJ = 0;
 		for( ofxAvVideoData * buffer : video_buffers ){
 			double distance = fabs(buffer->t - last_t);
+			if( buffer->t > last_t ) needsMoreVideo = false;
 			if( buffer->t > -1 && distance < bestDistance ){
 				data = buffer;
 				bestDistance = distance;
@@ -684,6 +680,7 @@ void ofxAvVideoPlayer::update(){
 			
 			j++;
 		}
+		this->needsMoreVideo = needsMoreVideo;
 		
 		for( int i = 0; i < video_buffers.size(); i++ ){
 			if( i == bestJ ) ofSetColor(255);
@@ -712,7 +709,6 @@ void ofxAvVideoPlayer::update(){
 		cout << last_t << endl;*/
 
 		//cout << last_t << "offset = " << (data->t-last_t) << endl;
-		cout << data->t << endl;
 		texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
 		video_buffers_read_pos = video_buffers_pos;
 	}
@@ -771,7 +767,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			next_seekTarget = -1;
 		}
 		
-		if( (audio_frames_available < output_sample_rate*0.3 ) && isPlaying ){
+		if( (audio_frames_available < output_sample_rate*0.3 || needsMoreVideo ) && isPlaying ){
 			decode_next_frame();
 		}
 		else{
