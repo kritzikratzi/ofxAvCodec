@@ -165,6 +165,8 @@ public:
 	// \brief updates the video textures
 	void update();
 	
+	string getInfo();
+	
 private:
 	unsigned long long duration;
 	float volume;

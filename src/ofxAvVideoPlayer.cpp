@@ -511,7 +511,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 						  // destinatin / destination stride
 						  data->video_dst_data, data->video_dst_linesize );
 				
-				cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
+				//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
 				if(packet.pts != AV_NOPTS_VALUE) {
 					data->pts = decoded_frame->pkt_pts;
 					data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
@@ -535,7 +535,9 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 			//avformat_seek_file(fmt_ctx,audio_stream_idx,0,0,0,AVSEEK_FLAG_ANY);
 			//avcodec_flush_buffers(audio_context);
 			//decode_next_frame();
-			restart_loop = true;
+			if( last_pts > 0 ){
+				restart_loop = true;
+			}
 			return false;
 		}
 		else{
@@ -682,19 +684,19 @@ void ofxAvVideoPlayer::update(){
 		}
 		this->needsMoreVideo = needsMoreVideo;
 		
-		for( int i = 0; i < video_buffers.size(); i++ ){
+/*		for( int i = 0; i < video_buffers.size(); i++ ){
 			if( i == bestJ ) ofSetColor(255);
 			else ofSetColor(200);
 			ofDrawBitmapString(ofToString(video_buffers[i]->t), 10+40*i, 200);
-		}
+		}*/
 		
 		if( bestDistance > 1 ){
 			// more than 1 sec out of sec. fuck!!!
-			cout << "over 1 sec out of sync. shit!" << endl;
+			//cout << "over 1 sec out of sync. shit!" << endl;
 			return;
 		}
 		
-		ofDrawBitmapString(last_t, 10+40*bestJ, 220);
+		//ofDrawBitmapString(last_t, 10+40*bestJ, 220);
 		/*for( ofxAvVideoData * buffer : video_buffers ){
 			if( data == buffer ) cout << "**";
 			cout << std::setprecision(2) << buffer->t << ", ";
@@ -723,6 +725,7 @@ void ofxAvVideoPlayer::run_decoder(){
 				ofSleepMillis(1);
 			}
 			next_seekTarget = 0;
+			last_pts = 0;
 		}
 		
 		if( next_seekTarget >= 0 ){
@@ -738,7 +741,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			int stream_index = audio_stream_idx;
 			avcodec_flush_buffers(video_context);
 			avcodec_flush_buffers(audio_context);
-			int64_t seek_target= av_rescale_q(seek_target, AV_TIME_BASE_Q, fmt_ctx->streams[stream_index]->time_base);
+			int64_t seek_target= av_rescale_q(next_seekTarget==0?-1:next_seekTarget, AV_TIME_BASE_Q, fmt_ctx->streams[stream_index]->time_base);
 			if(av_seek_frame(fmt_ctx, stream_index,
 							 seek_target, AVSEEK_FLAG_BACKWARD) < 0) {
 				cerr << "error while seeking\n" << fileNameAbs << endl;
@@ -759,10 +762,8 @@ void ofxAvVideoPlayer::run_decoder(){
 			video_buffers_mutex.unlock();
 			audio_queue_mutex.unlock();
 			
-			if( next_seekTarget == 0 ){
-				for( int i  =0; i < 10; i++ ){
-					decode_next_frame();
-				}
+			for( int i  =0; i < 10; i++ ){
+				decode_next_frame();
 			}
 			next_seekTarget = -1;
 		}
@@ -778,4 +779,38 @@ void ofxAvVideoPlayer::run_decoder(){
 
 string ofxAvVideoPlayer::getFile(){
 	return fileNameAbs;
+}
+
+string ofxAvVideoPlayer::getInfo(){
+	stringstream info;
+	
+	if( isLoaded() ){
+		if( video_stream_idx >= 0 ){
+			info << "Video: " << video_context->codec->name << ", " << video_context->width << " x " << video_context->height;
+			
+			float aspect = video_context->width/(float)video_context->height;
+			float eps = 0.001;
+			
+			if( fabsf(aspect-4.0/3.0) < eps ) info <<" (4:3)";
+			else if( fabsf(aspect-16.0/9.0) < eps ) info <<" (16:9)";
+			else if( fabsf(aspect-3.0/2.0) < eps ) info <<" (3:2)";
+			else if( fabsf(aspect-2.35/1.0) < eps ) info <<" (2.35:1)";
+
+			info << " @ " << av_q2d(video_context->framerate) << "fps" << endl;
+		}
+		else{
+			info << "Video: -" << endl;
+		}
+		if( audio_stream_idx >= 0 ){
+			info << "Audio: " << audio_context->codec->name << ", " << audio_context->channels << " channels, " << audio_context->sample_rate << "kHz" << endl;
+		}
+		else{
+			info << "Audio: -" << endl;
+		}
+	}
+	else{
+		info << "no video loaded";
+	}
+	
+	return info.str();
 }
