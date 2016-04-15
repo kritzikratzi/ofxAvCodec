@@ -845,7 +845,7 @@ void ofxAvVideoPlayer::update(){
 
 void ofxAvVideoPlayer::run_decoder(){
 	while( isLoaded() && !wantsUnload){
-		if( restart_loop ){
+		if( restart_loop && isPlaying ){
 			restart_loop = false;
 			// wait until we run out of samples!
 			while( audio_frames_available > 0 && !wantsUnload && isPlaying){
@@ -875,7 +875,7 @@ void ofxAvVideoPlayer::run_decoder(){
 				seek_target = -1;
 			}
 			
-			int flags = AVSEEK_FLAG_FRAME;
+			int flags = AVSEEK_FLAG_FRAME|AVSEEK_FLAG_ANY;
 			if( next_seekTarget < last_t ){
 				flags |= AVSEEK_FLAG_BACKWARD;
 			}
@@ -898,7 +898,7 @@ void ofxAvVideoPlayer::run_decoder(){
 				// seek to 0, go forward
 				avcodec_flush_buffers(video_context);
 				avcodec_flush_buffers(audio_context);
-				seek_target = next_seekTarget*getFps()*av_q2d(audio_stream->time_base)-50;
+				seek_target = next_seekTarget*getFps()*av_q2d(audio_stream->time_base)-30;
 				av_seek_frame(fmt_ctx, stream_index, seek_target, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY);
 				//avformat_seek_file(fmt_ctx, video_stream_idx, 0, 0, 0, AVSEEK_FLAG_BYTE|AVSEEK_FLAG_BACKWARD);
 				avcodec_flush_buffers(video_context);
@@ -921,9 +921,9 @@ void ofxAvVideoPlayer::run_decoder(){
 			video_buffers_mutex.unlock();
 			audio_queue_mutex.unlock();
 			
-			for( int i  =0; i < video_buffers.size(); i++ ){
-				decode_next_frame();
-			}
+			//for( int i  =0; i < video_buffers.size(); i++ ){
+			//	decode_next_frame();
+			//}
 			next_seekTarget = -1;
 		}
 		
