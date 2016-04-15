@@ -107,7 +107,7 @@ public:
 	
 	/// \brief Sets position of the playhead within the file (aka "seeking").
 	/// \param ms number of milliseconds from the start of the file.
-	void setPositionMS(unsigned long long ms);
+	void setPositionMS(long long ms);
 	
 	/// \brief Gets position of the playhead.
 	/// \return playhead position in milliseconds.
@@ -123,7 +123,7 @@ public:
 	
 	/// \brief Gets duration in
 	/// \return true if the player is currently playing a file.
-	unsigned long long getDurationMs();
+	long long getDurationMs();
 	
 	/// \brief Gets playback speed.
 	/// \return playback speed (see ofSoundPlayer::setSpeed()).
@@ -168,17 +168,18 @@ public:
 	string getInfo();
 	
 private:
-	unsigned long long duration;
+	long long duration;
 	float volume;
 	bool decode_next_frame();
+	bool decode_until( double t, double & decoded_t );
 	
 	bool fileLoaded;
 	bool wantsUnload; 
 	bool isPlaying;
 	bool isLooping;
 	
-	unsigned long long av_time_to_millis( int64_t av_time );
-	int64_t millis_to_av_time( unsigned long long ms );
+	long long av_time_to_millis( int64_t av_time );
+	int64_t millis_to_av_time( long long ms );
 	
 	// i think these could be useful public, rarely, but still ...
 	AVPacket packet;
