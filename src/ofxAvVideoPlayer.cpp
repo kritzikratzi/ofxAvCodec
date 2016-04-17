@@ -327,7 +327,7 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 		result.pts = data->pts + data->decoded_buffer_pos/output_num_channels;
 		result.t = data->t + data->decoded_buffer_pos/output_num_channels/(double)output_sample_rate;
 		//cout << "(" << result.t << ")" << endl;
-		last_pts = result.pts;
+		last_pts = data->pts_native +  data->decoded_buffer_pos/output_num_channels/(double)output_sample_rate/av_q2d(audio_stream->time_base);
 		last_t = result.t;
 	}
 	
@@ -616,9 +616,14 @@ decode_another:
 												 SWS_FAST_BILINEAR, NULL, NULL, NULL );
 				}
 				
-				//TODO: pass cached as param?
-				//this will be required to handle the last frame correctly.
-				bool cached = false;
+
+				double nextT = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
+				bool stillBehind = nextT < t;
+				bool notTooFarBehind = t - nextT < 5;
+				bool notTooLittleBehind = nextT+1/getFps()/2 < t;
+				if( stillBehind && notTooFarBehind && notTooLittleBehind ){
+					goto decode_another;
+				}
 				/*				printf("video_frame%s n:%d coded_n:%d pts:%s\n",
 				 cached ? "(cached)" : "",
 				 video_frame_count++, frame->coded_picture_number,
@@ -648,13 +653,6 @@ decode_another:
 				}
 				
 				decoded_t = data->t;
-				
-				bool stillBehind = data->t < t;
-				bool notTooFarBehind = t - data->t < 5;
-				bool notTooLittleBehind = data->t+1/getFps()/2 < t;
-				if( stillBehind && notTooFarBehind && notTooLittleBehind ){
-					goto decode_another;
-				}
 			}
 			else{
 				goto decode_another;
@@ -785,6 +783,7 @@ double ofxAvVideoPlayer::getFps(){
 }
 
 void ofxAvVideoPlayer::update(){
+	if( !fileLoaded ) return; 
 	if( !texture.isAllocated() || texture.getWidth() != width || texture.getHeight() != height ){
 		texture.allocate( width, height, GL_RGB );
 	}
@@ -869,17 +868,17 @@ void ofxAvVideoPlayer::run_decoder(){
 			avcodec_flush_buffers(video_context);
 			avcodec_flush_buffers(audio_context);
 //			int64_t seek_target= av_rescale_q(next_seekTarget==0?-1:next_seekTarget, AV_TIME_BASE_Q, fmt_ctx->streams[stream_index]->time_base);
-			int64_t seek_target = next_seekTarget*getFps()*av_q2d(audio_stream->time_base)-10;
+			int64_t seek_target = next_seekTarget*1000000*av_q2d(audio_stream->time_base)-1000000;
 			// avformat_seek_file(fmt_ctx, -1, next_seekTarget-1/getFps(), next_seekTarget, next_seekTarget+1/getFps(), AVSEEK_FLAG_ANY)
 			if( seek_target == 0 ){
 				seek_target = -1;
 			}
 			
-			int flags = AVSEEK_FLAG_FRAME|AVSEEK_FLAG_ANY;
-			if( next_seekTarget < last_t ){
+			int flags = AVSEEK_FLAG_ANY;
+			if( next_seekTarget < last_pts ){
 				flags |= AVSEEK_FLAG_BACKWARD;
 			}
-			if(av_seek_frame(fmt_ctx, stream_index, seek_target, flags)) {
+			if(av_seek_frame(fmt_ctx, -1, seek_target, flags)) {
 				cerr << "error while seeking\n" << fileNameAbs << endl;
 				last_t = 0;
 				last_pts = 0;
@@ -898,8 +897,8 @@ void ofxAvVideoPlayer::run_decoder(){
 				// seek to 0, go forward
 				avcodec_flush_buffers(video_context);
 				avcodec_flush_buffers(audio_context);
-				seek_target = next_seekTarget*getFps()*av_q2d(audio_stream->time_base)-30;
-				av_seek_frame(fmt_ctx, stream_index, seek_target, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY);
+				seek_target = next_seekTarget*1000000*av_q2d(audio_stream->time_base)-2500000;
+				av_seek_frame(fmt_ctx, -1, seek_target, AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY);
 				//avformat_seek_file(fmt_ctx, video_stream_idx, 0, 0, 0, AVSEEK_FLAG_BYTE|AVSEEK_FLAG_BACKWARD);
 				avcodec_flush_buffers(video_context);
 				avcodec_flush_buffers(audio_context);
