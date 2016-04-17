@@ -318,7 +318,7 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 }
 
 unsigned long long ofxAvAudioPlayer::av_time_to_millis( int64_t av_time ){
-	return av_rescale(1000*av_time,(uint64_t)container->streams[audio_stream_id]->time_base.num,container->streams[audio_stream_id]->time_base.den);
+	return av_rescale(1000*av_time,container->streams[audio_stream_id]->time_base.num,container->streams[audio_stream_id]->time_base.den);
 	//alternative:
 	//return av_time*1000*av_q2d(container->streams[audio_stream_id]->time_base);
 }
@@ -327,7 +327,7 @@ int64_t ofxAvAudioPlayer::millis_to_av_time( unsigned long long ms ){
 	//TODO: fix conversion
 /*	int64_t timeBase = (int64_t(codec_context->time_base.num) * AV_TIME_BASE) / int64_t(codec_context->time_base.den);
 	int64_t seekTarget = int64_t(ms) / timeBase;*/
-	return av_rescale(ms,container->streams[audio_stream_id]->time_base.den,(uint64_t)container->streams[audio_stream_id]->time_base.num)/1000;
+	return av_rescale(ms,container->streams[audio_stream_id]->time_base.den,container->streams[audio_stream_id]->time_base.num)/1000;
 }
 
 
