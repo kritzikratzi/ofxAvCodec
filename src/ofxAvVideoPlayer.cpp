@@ -810,11 +810,11 @@ void ofxAvVideoPlayer::update(){
 		}
 		this->needsMoreVideo = needsMoreVideo;
 		
-		for( int i = 0; i < video_buffers.size(); i++ ){
+/*		for( int i = 0; i < video_buffers.size(); i++ ){
 			if( i == bestJ ) ofSetColor(255);
 			else ofSetColor(200);
 			ofDrawBitmapString(ofToString(video_buffers[i]->t), 10+40*i, 200);
-		}
+		}*/
 		
 		if( bestDistance > 1 ){
 			// more than 1 sec out of sec. fuck!!!
@@ -822,7 +822,7 @@ void ofxAvVideoPlayer::update(){
 			return;
 		}
 		
-		ofDrawBitmapString(last_t, 10+40*bestJ, 220);
+//		ofDrawBitmapString(last_t, 10+40*bestJ, 220);
 		/*for( ofxAvVideoData * buffer : video_buffers ){
 			if( data == buffer ) cout << "**";
 			cout << std::setprecision(2) << buffer->t << ", ";
