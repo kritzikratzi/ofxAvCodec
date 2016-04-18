@@ -689,7 +689,7 @@ int64_t ofxAvVideoPlayer::millis_to_av_time( long long ms ){
 
 
 void ofxAvVideoPlayer::setPositionMS(long long ms){
-	next_seekTarget = millis_to_av_time(ms);
+	next_seekTarget = millis_to_av_time(min(ms,duration));
 }
 
 int ofxAvVideoPlayer::getPositionMS(){
