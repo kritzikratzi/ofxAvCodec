@@ -464,62 +464,8 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 			}
 			
 			if (got_frame) {
-				if (decoded_frame->width != width || decoded_frame->height != height /*|| decoded_frame->format != pix_fmt*/) {
-					/* To handle this change, one could call av_image_alloc again and
-					 * decode the following frames into another rawvideo file. */
-					fprintf(stderr, "Error: Width, height and pixel format have to be "
-							"constant in a rawvideo file, but the width, height or "
-							"pixel format of the input video changed:\n"
-							"old: width = %d, height = %d, format = %s\n"
-							"new: width = %d, height = %d, format = %s\n",
-							width, height, av_get_pix_fmt_name(pix_fmt),
-							decoded_frame->width, decoded_frame->height,
-							av_get_pix_fmt_name((AVPixelFormat)decoded_frame->format));
-					return -1;
-				}
-				
-				if( sws_context == NULL ){
-					// Create context
-					sws_context = sws_getContext(
-												 // source
-												 video_context->width, video_context->height, video_context->pix_fmt,
-												 // dest
-												 video_context->width, video_context->height, AV_PIX_FMT_RGB24,
-												 // flags / src filter / dest filter / param
-												 SWS_FAST_BILINEAR, NULL, NULL, NULL );
-				}
-				
-				//TODO: pass cached as param?
-				//this will be required to handle the last frame correctly.
-				bool cached = false;
-/*				printf("video_frame%s n:%d coded_n:%d pts:%s\n",
-					   cached ? "(cached)" : "",
-					   video_frame_count++, frame->coded_picture_number,
-					   av_ts2timestr(frame->pts, &video_dec_ctx->time_base));*/
-				
-				/* copy decoded frame to destination buffer:
-				 * this is required since rawvideo expects non aligned data */
-				// this will be relevant for filtering the video?
-				/*av_image_copy(video_dst_data, video_dst_linesize,
-							  (const uint8_t **)(decoded_frame->data), decoded_frame->linesize,
-							  pix_fmt, width, height);*/
 				lock_guard<mutex> lock(video_buffers_mutex);
-				int index = (video_buffers_pos)%video_buffers.size();
-				video_buffers_pos ++;
-				ofxAvVideoData * data = video_buffers[index];
-				sws_scale(sws_context,
-						  // src slice / src stride
-						  decoded_frame->data, decoded_frame->linesize,
-						  // src slice y / src slice h
-						  0, height,
-						  // destinatin / destination stride
-						  data->video_dst_data, data->video_dst_linesize );
-				
-				//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
-				if(packet.pts != AV_NOPTS_VALUE) {
-					data->pts = decoded_frame->pkt_pts;
-					data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
-				}
+				queue_decoded_video_frame_vlocked();
 			}
 			
 			return true;
@@ -591,32 +537,6 @@ decode_another:
 			}
 			
 			if (got_frame) {
-				if (decoded_frame->width != width || decoded_frame->height != height /*|| decoded_frame->format != pix_fmt*/) {
-					/* To handle this change, one could call av_image_alloc again and
-					 * decode the following frames into another rawvideo file. */
-					fprintf(stderr, "Error: Width, height and pixel format have to be "
-							"constant in a rawvideo file, but the width, height or "
-							"pixel format of the input video changed:\n"
-							"old: width = %d, height = %d, format = %s\n"
-							"new: width = %d, height = %d, format = %s\n",
-							width, height, av_get_pix_fmt_name(pix_fmt),
-							decoded_frame->width, decoded_frame->height,
-							av_get_pix_fmt_name((AVPixelFormat)decoded_frame->format));
-					return -1;
-				}
-				
-				if( sws_context == NULL ){
-					// Create context
-					sws_context = sws_getContext(
-												 // source
-												 video_context->width, video_context->height, video_context->pix_fmt,
-												 // dest
-												 video_context->width, video_context->height, AV_PIX_FMT_RGB24,
-												 // flags / src filter / dest filter / param
-												 SWS_FAST_BILINEAR, NULL, NULL, NULL );
-				}
-				
-
 				double nextT = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
 				bool stillBehind = nextT < t;
 				bool notTooFarBehind = t - nextT < 5;
@@ -624,35 +544,9 @@ decode_another:
 				if( stillBehind && notTooFarBehind && notTooLittleBehind ){
 					goto decode_another;
 				}
-				/*				printf("video_frame%s n:%d coded_n:%d pts:%s\n",
-				 cached ? "(cached)" : "",
-				 video_frame_count++, frame->coded_picture_number,
-				 av_ts2timestr(frame->pts, &video_dec_ctx->time_base));*/
-				
-				/* copy decoded frame to destination buffer:
-				 * this is required since rawvideo expects non aligned data */
-				// this will be relevant for filtering the video?
-				/*av_image_copy(video_dst_data, video_dst_linesize,
-				 (const uint8_t **)(decoded_frame->data), decoded_frame->linesize,
-				 pix_fmt, width, height);*/
-				int index = (video_buffers_pos)%video_buffers.size();
-				video_buffers_pos ++;
-				ofxAvVideoData * data = video_buffers[index];
-				sws_scale(sws_context,
-						  // src slice / src stride
-						  decoded_frame->data, decoded_frame->linesize,
-						  // src slice y / src slice h
-						  0, height,
-						  // destinatin / destination stride
-						  data->video_dst_data, data->video_dst_linesize );
-				
-				//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
-				if(packet.pts != AV_NOPTS_VALUE) {
-					data->pts = decoded_frame->pkt_pts;
-					data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
-				}
-				
-				decoded_t = data->t;
+
+				queue_decoded_video_frame_vlocked();
+				decoded_t = video_buffers[(video_buffers_pos)%video_buffers.size()]->t;
 			}
 			else{
 				goto decode_another;
@@ -670,6 +564,99 @@ decode_another:
 	else{
 		// no data read...
 		return false;
+	}
+}
+
+bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
+	if (decoded_frame->width != width || decoded_frame->height != height /*|| decoded_frame->format != pix_fmt*/) {
+		/* To handle this change, one could call av_image_alloc again and
+		 * decode the following frames into another rawvideo file. */
+		fprintf(stderr, "Error: Width, height and pixel format have to be "
+				"constant in a rawvideo file, but the width, height or "
+				"pixel format of the input video changed:\n"
+				"old: width = %d, height = %d, format = %s\n"
+				"new: width = %d, height = %d, format = %s\n",
+				width, height, av_get_pix_fmt_name(pix_fmt),
+				decoded_frame->width, decoded_frame->height,
+				av_get_pix_fmt_name((AVPixelFormat)decoded_frame->format));
+		return -1;
+	}
+	
+	if( sws_context == NULL ){
+		// Create context
+		AVPixelFormat pixFormat = video_context->pix_fmt;
+		cout << "fmt = " << pixFormat << endl;
+		switch (video_stream->codec->pix_fmt) {
+			case AV_PIX_FMT_YUVJ420P :
+				pixFormat = AV_PIX_FMT_YUV420P;
+				break;
+			case AV_PIX_FMT_YUVJ422P  :
+				pixFormat = AV_PIX_FMT_YUV422P;
+				break;
+			case AV_PIX_FMT_YUVJ444P   :
+				pixFormat = AV_PIX_FMT_YUV444P;
+				break;
+			case AV_PIX_FMT_YUVJ440P :
+				pixFormat = AV_PIX_FMT_YUV440P;
+			default:
+				pixFormat = video_stream->codec->pix_fmt;
+				break;
+		}
+		sws_context = sws_getContext(
+									 // source
+									 video_context->width, video_context->height, video_context->pix_fmt,
+									 // dest
+									 video_context->width, video_context->height, AV_PIX_FMT_RGB24,
+									 // flags / src filter / dest filter / param
+									 SWS_FAST_BILINEAR, NULL, NULL, NULL );
+		
+		
+		// transfer color space from decoder to encoder
+		int *coefficients;
+		const int *new_coefficients;
+		int full_range;
+		int brightness, contrast, saturation;
+		bool use_full_range = 0;
+		
+		if ( sws_getColorspaceDetails( sws_context, &coefficients, &full_range, &coefficients, &full_range,
+									  &brightness, &contrast, &saturation ) != -1 )
+		{
+			new_coefficients = sws_getCoefficients(video_stream->codec->colorspace);
+			sws_setColorspaceDetails( sws_context, new_coefficients, full_range, new_coefficients, full_range,
+									 brightness, contrast, saturation );
+		}
+	}
+	
+	//TODO: pass cached as param?
+	//this will be required to handle the last frame correctly.
+	bool cached = false;
+	/*				printf("video_frame%s n:%d coded_n:%d pts:%s\n",
+	 cached ? "(cached)" : "",
+	 video_frame_count++, frame->coded_picture_number,
+	 av_ts2timestr(frame->pts, &video_dec_ctx->time_base));*/
+	
+	/* copy decoded frame to destination buffer:
+	 * this is required since rawvideo expects non aligned data */
+	// this will be relevant for filtering the video?
+	/*av_image_copy(video_dst_data, video_dst_linesize,
+	 (const uint8_t **)(decoded_frame->data), decoded_frame->linesize,
+	 pix_fmt, width, height);*/
+	int index = (video_buffers_pos)%video_buffers.size();
+	video_buffers_pos ++;
+	video_buffers_pos %= video_buffers.size();
+	ofxAvVideoData * data = video_buffers[index];
+	sws_scale(sws_context,
+			  // src slice / src stride
+			  decoded_frame->data, decoded_frame->linesize,
+			  // src slice y / src slice h
+			  0, height,
+			  // destinatin / destination stride
+			  data->video_dst_data, data->video_dst_linesize );
+	
+	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
+	if(packet.pts != AV_NOPTS_VALUE) {
+		data->pts = decoded_frame->pkt_pts;
+		data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
 	}
 }
 

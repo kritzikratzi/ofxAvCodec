@@ -172,6 +172,7 @@ private:
 	float volume;
 	bool decode_next_frame();
 	bool decode_until( double t, double & decoded_t );
+	bool queue_decoded_video_frame_vlocked();
 	
 	bool fileLoaded;
 	bool wantsUnload; 
