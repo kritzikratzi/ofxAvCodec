@@ -115,6 +115,7 @@ static int open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AV
 bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	unload();
 	fileNameAbs = ofToDataPath(fileName,true);
+	fileNameBase = ofFile(fileNameAbs,ofFile::Reference).getFileName();
 	const char * input_filename = fileNameAbs.c_str();
 	// the first finds the right codec, following  https://blinkingblip.wordpress.com/2011/10/08/decoding-and-playing-an-audio-stream-using-libavcodec-libavformat-and-libao/
 	// and also demuxing_decoding.c in the ffmpeg examples
@@ -658,6 +659,8 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 		data->pts = decoded_frame->pkt_pts;
 		data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
 	}
+	
+	return true; 
 }
 
 long long ofxAvVideoPlayer::av_time_to_millis( int64_t av_time ){
@@ -930,6 +933,7 @@ string ofxAvVideoPlayer::getInfo(){
 	stringstream info;
 	
 	if( isLoaded() ){
+		info << "File: " << fileNameBase << endl;
 		if( video_stream_idx >= 0 ){
 			info << "Video: " << video_context->codec->name << ", " << video_context->width << " x " << video_context->height;
 			

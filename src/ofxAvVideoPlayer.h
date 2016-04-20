@@ -235,7 +235,8 @@ private:
 	
 	bool needsMoreVideo;
 	bool restart_loop;
-	string fileNameAbs; 
+	string fileNameAbs;
+	string fileNameBase; 
 };
 
 #endif
