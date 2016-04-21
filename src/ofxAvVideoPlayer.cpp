@@ -225,7 +225,9 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 		return false;
 	}
 	
+	next_seekTarget = 0;
 	decoderThread = thread(&ofxAvVideoPlayer::run_decoder, this);
+	
 	return true;
 }
 
@@ -489,9 +491,12 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 			//avformat_seek_file(fmt_ctx,audio_stream_idx,0,0,0,AVSEEK_FLAG_ANY);
 			//avcodec_flush_buffers(audio_context);
 			//decode_next_frame();
-			if( last_pts > 0 ){
-				restart_loop = true;
+			if( isPlaying ){
+				if( last_pts > 0 ){
+					restart_loop = true;
+				}
 			}
+			
 			return false;
 		}
 		else{
@@ -922,7 +927,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			next_seekTarget = -1;
 		}
 		
-		if( (audio_frames_available < output_sample_rate*0.3 || (needsMoreVideo&&isPlaying) ) ){
+		if( isPlaying && (audio_frames_available < output_sample_rate*0.3 || (needsMoreVideo) ) ){
 			decode_next_frame();
 		}
 		else{
