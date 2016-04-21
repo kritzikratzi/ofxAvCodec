@@ -212,8 +212,10 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	
 	// we continue here:
 	decode_next_frame();
-	if( audio_stream_idx >= 0 ){
-		duration = av_time_to_millis(fmt_ctx->streams[audio_stream_idx]->duration);
+	//TODO: only video should be required.
+	if( audio_stream_idx >= 0 && video_stream_idx >= 0 ){
+		duration = fmt_ctx->duration*1000*av_q2d(AV_TIME_BASE_Q);
+		//duration = av_time_to_millis(fmt_ctx->streams[audio_stream_idx]->duration);
 	}
 	else if( video_stream_idx ){
 		duration = av_time_to_millis(fmt_ctx->streams[video_stream_idx]->duration);
@@ -257,6 +259,7 @@ void ofxAvVideoPlayer::unload(){
 	last_t = 0;
 	last_pts = 0;
 	restart_loop = false;
+	texturePts = -1;
 	
 	audio_queue_mutex.lock();
 	while( audio_queue.size() > 0 ){
@@ -559,7 +562,7 @@ decode_another:
 		// Unknown data stream
 		// ----------------------------------------------
 		else{
-			return false;
+			goto decode_another;
 		}
 	}
 	else{
@@ -827,8 +830,11 @@ void ofxAvVideoPlayer::update(){
 		cout << last_t << endl;*/
 
 		//cout << last_t << "offset = " << (data->t-last_t) << endl;
-		texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
-		video_buffers_read_pos = video_buffers_pos;
+		if( texturePts != data->pts ){
+			texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
+			video_buffers_read_pos = video_buffers_pos;
+			texturePts = data->pts;
+		}
 	}
 }
 

@@ -215,6 +215,7 @@ private:
 	int height;
 	
 	ofTexture texture;
+	int64_t texturePts;
 	
 	
 	mutex video_buffers_mutex;
