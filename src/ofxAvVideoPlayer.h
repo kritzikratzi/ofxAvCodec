@@ -173,6 +173,7 @@ private:
 	bool decode_next_frame();
 	bool decode_until( double t, double & decoded_t );
 	bool queue_decoded_video_frame_vlocked();
+	ofxAvVideoData * video_data_for_time_vlocked( double t );
 	
 	bool fileLoaded;
 	bool wantsUnload; 

@@ -472,6 +472,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 			if (got_frame) {
 				lock_guard<mutex> lock(video_buffers_mutex);
 				queue_decoded_video_frame_vlocked();
+				needsMoreVideo = false;
 			}
 			
 			return true;
@@ -780,6 +781,27 @@ double ofxAvVideoPlayer::getFps(){
 	return av_q2d(video_stream->r_frame_rate); 
 }
 
+ofxAvVideoData * ofxAvVideoPlayer::video_data_for_time_vlocked( double t ){
+	ofxAvVideoData * data = video_buffers[0];
+	double bestDistance = 10;
+	
+	bool needsMoreVideo = true;
+	int j = 0, bestJ = 0;
+	for( ofxAvVideoData * buffer : video_buffers ){
+		double distance = fabs(buffer->t - last_t);
+		if( buffer->t > -1 && distance < bestDistance ){
+			data = buffer;
+			bestDistance = distance;
+			bestJ = j;
+		}
+		
+		j++;
+	}
+
+	return data;
+}
+
+
 void ofxAvVideoPlayer::update(){
 	if( !fileLoaded ) return; 
 	if( !texture.isAllocated() || texture.getWidth() != width || texture.getHeight() != height ){
@@ -788,25 +810,20 @@ void ofxAvVideoPlayer::update(){
 	
 	if( true ){
 		lock_guard<mutex> lock(video_buffers_mutex);
-
-		// ok, really... fudge the index, find the best buffer!
-		ofxAvVideoData * data = video_buffers[0];
-		double bestDistance = 10;
+		ofxAvVideoData * data = video_data_for_time_vlocked(last_t);
 		
-		bool needsMoreVideo = true;
-		int j = 0, bestJ = 0;
-		for( ofxAvVideoData * buffer : video_buffers ){
-			double distance = fabs(buffer->t - last_t);
-			if( buffer->t > last_t ) needsMoreVideo = false;
-			if( buffer->t > -1 && distance < bestDistance ){
-				data = buffer;
-				bestDistance = distance;
-				bestJ = j;
-			}
-			
-			j++;
+		if( texturePts != data->pts ){
+			texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
+			video_buffers_read_pos = video_buffers_pos;
+			texturePts = data->pts;
 		}
-		this->needsMoreVideo = needsMoreVideo;
+		
+		// we're basically done, now check for the next frame, maybe.
+		if( isPlaying ){
+			double dt = 1.0/getFps();
+			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(last_t+1.1*dt);
+			if( nextFrame->t <= data->t ) needsMoreVideo = true;
+		}
 		
 /*		for( int i = 0; i < video_buffers.size(); i++ ){
 			if( i == bestJ ) ofSetColor(255);
@@ -814,32 +831,7 @@ void ofxAvVideoPlayer::update(){
 			ofDrawBitmapString(ofToString(video_buffers[i]->t), 10+40*i, 200);
 		}*/
 		
-		if( bestDistance > 1 ){
-			// more than 1 sec out of sec. fuck!!!
-			//cout << "over 1 sec out of sync. shit!" << endl;
-			return;
-		}
 		
-//		ofDrawBitmapString(last_t, 10+40*bestJ, 220);
-		/*for( ofxAvVideoData * buffer : video_buffers ){
-			if( data == buffer ) cout << "**";
-			cout << std::setprecision(2) << buffer->t << ", ";
-		}
-		cout << endl;
-		
-		static double last = data->t;
-		if( last > data->t ){
-			cout << "was: " << last << "got: " << data->t << endl;
-		}
-		last = data->t;
-		cout << last_t << endl;*/
-
-		//cout << last_t << "offset = " << (data->t-last_t) << endl;
-		if( texturePts != data->pts ){
-			texture.loadData(data->video_dst_data[0], width, height, GL_RGB);
-			video_buffers_read_pos = video_buffers_pos;
-			texturePts = data->pts;
-		}
 	}
 }
 
