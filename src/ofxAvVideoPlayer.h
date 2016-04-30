@@ -166,6 +166,20 @@ public:
 	void update();
 	
 	string getInfo();
+
+    int getCurrentFrame();
+    int getTotalNumFrames();
+
+    void    firstFrame();
+    void    nextFrame();
+    void    previousFrame();
+
+    float   getHeight() const;
+    float   getWidth() const;
+
+    void    draw(float x, float y, float w, float h);
+    void    draw(float x, float y);
+
 	
 private:
 	long long duration;
