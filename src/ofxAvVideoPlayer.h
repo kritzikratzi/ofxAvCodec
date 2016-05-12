@@ -145,7 +145,7 @@ public:
 	// by default resampling is taken care of automatically (set it with setupAudioOut())
 	// with this you can disable the sampling and force the file's native data format.
 	// set it before .load
-	bool forceNativeFormat;
+	bool forceNativeAudioFormat;
 	
 	/// \brief return a metadata item. available after load()
 	/// \return the string contents of the metadata item
@@ -207,6 +207,7 @@ private:
 	int output_sample_rate;
 	int64_t output_channel_layout;
 	int output_num_channels;
+	bool output_setup_called;
 	
 	int64_t next_seekTarget;
 	
@@ -220,10 +221,14 @@ private:
 	
 	
 	mutex video_buffers_mutex;
+	// here we store the decoded buffers in native format.
+	// most of the time this is some funky yuv frame which is convert
+	// and pushed into the texture in update().
 	vector<ofxAvVideoData*> video_buffers;
 	int video_buffers_pos;
 	int video_buffers_read_pos;
 	int video_buffers_size;
+	const ofPixels video_pixels;
 	
 	mutex audio_queue_mutex;
 	queue<ofxAvAudioData*> audio_queue;
