@@ -158,6 +158,7 @@ public:
 	
 	// \brief returns the video texture
 	ofTexture &getTexture();
+	const ofPixels & getPixels();
 	int getFrameNumber();
 	double getFps(); 
 	string getFile();
@@ -173,6 +174,7 @@ private:
 	bool decode_next_frame();
 	bool decode_until( double t, double & decoded_t );
 	bool queue_decoded_video_frame_vlocked();
+	bool copy_to_pixels_vlocked( ofxAvVideoData * data );
 	ofxAvVideoData * video_data_for_time_vlocked( double t );
 	
 	bool fileLoaded;
@@ -209,6 +211,7 @@ private:
 	int output_num_channels;
 	bool output_setup_called;
 	
+	bool requestedSeek; 
 	int64_t next_seekTarget;
 	
 	bool output_config_changed;
@@ -225,10 +228,8 @@ private:
 	// most of the time this is some funky yuv frame which is convert
 	// and pushed into the texture in update().
 	vector<ofxAvVideoData*> video_buffers;
-	int video_buffers_pos;
-	int video_buffers_read_pos;
-	int video_buffers_size;
-	const ofPixels video_pixels;
+	int video_buffers_pos; // position where we write into the buffer
+	ofPixels video_pixels;
 	
 	mutex audio_queue_mutex;
 	queue<ofxAvAudioData*> audio_queue;
