@@ -1135,3 +1135,45 @@ string ofxAvVideoPlayer::getInfo(){
 	
 	return info.str();
 }
+
+int ofxAvVideoPlayer::getCurrentFrame() {
+    return (int)(round(getPositionMS()/(1000.0/getFps())));
+}
+
+int ofxAvVideoPlayer::getTotalNumFrames() {
+    if( !isLoaded() ) return 0;
+    return (int)(duration * 1000 * getFps());
+}
+
+void ofxAvVideoPlayer::firstFrame(){
+    if(duration>0) {
+        setPositionMS(0.0);
+    }
+}
+
+void ofxAvVideoPlayer::nextFrame(){
+    if(duration>0) {
+        setPositionMS(getPositionMS() + 1000.0/getFps());
+    }
+}
+
+void ofxAvVideoPlayer::previousFrame(){
+    if(duration>0) {
+        setPositionMS(getPositionMS() - 1000.0/getFps());
+    }}
+
+float ofxAvVideoPlayer::getHeight() const {
+   return (float)height;
+}
+
+float ofxAvVideoPlayer::getWidth() const {
+    return (float)width;
+}
+
+void ofxAvVideoPlayer::draw(float _x, float _y, float _w, float _h) {
+    getTexture().draw(_x,_y,_w,_h);
+}
+
+void ofxAvVideoPlayer::draw(float _x, float _y) {
+    draw(_x, _y, getWidth(), getHeight());
+}
