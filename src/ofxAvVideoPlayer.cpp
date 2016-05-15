@@ -230,14 +230,18 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	// we continue here:
 	decode_next_frame();
 	//TODO: only video should be required.
-	if( audio_stream_idx >= 0 && video_stream_idx >= 0 ){
-		duration = fmt_ctx->duration*1000*av_q2d(AV_TIME_BASE_Q);
-		//duration = av_time_to_millis(fmt_ctx->streams[audio_stream_idx]->duration);
+	if( video_stream_idx >= 0){
+		duration = 1000*video_stream->duration*av_q2d(video_stream->time_base);
 	}
-	else if( video_stream_idx >= 0){
-		duration = av_time_to_millis(fmt_ctx->streams[video_stream_idx]->duration);
+	else if( audio_stream_idx >= 0 ){
+		duration = 1000*audio_stream->duration*av_q2d(audio_stream->time_base);
 	}
-	else{
+	
+	if( duration <= 0 ){
+		duration = 1000*fmt_ctx->duration*av_q2d(AV_TIME_BASE_Q);
+	}
+	
+	if( duration <= 0 ){
 		unload();
 		return false;
 	}
@@ -489,24 +493,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		// Handle video stream
 		// ----------------------------------------------
 		else if(packet.stream_index == video_stream_idx ){
-			/* decode video frame */
-			AVL_MEASURE(uint64_t decode_start = ofGetSystemTime();)
-			res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
-			AVL_MEASURE(uint64_t decode_end = ofGetSystemTime();)
-			AVL_MEASURE(cout << "decode_2 = " << (decode_end-decode_start)/1000.0 << endl;)
-			if (res < 0) {
-				fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(res));
-				return false;
-			}
-			
-			if (got_frame) {
-				lock_guard<mutex> lock(video_buffers_mutex);
-				AVL_MEASURE(uint64_t queue_start = ofGetSystemTime();)
-				queue_decoded_video_frame_vlocked();
-				AVL_MEASURE(uint64_t queue_end = ofGetSystemTime();)
-				AVL_MEASURE(cout << "queue_frame = " << (queue_end-queue_start)/1000.0 << endl;)
-				needsMoreVideo = false;
-			}
+			decode_video_frame(got_frame);
 			
 			return true;
 		}
@@ -519,6 +506,18 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 	}
 	else{
 		// no data read...
+		// there might be some leftover frames in the buffer!
+		packet.data = NULL;
+		packet.size = 0;
+		int got_frame;
+		if( decode_video_frame(got_frame) || got_frame ){
+			// yep, we got another.
+			// back to the start. btw, this game could happen >3 times !
+			return true;
+		}
+		
+		
+		
 		packet_data_size = 0;
 		//TODO: clear out all buffers!
 		if( isLooping ){
@@ -541,6 +540,30 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 	}
 }
 
+bool ofxAvVideoPlayer::decode_video_frame( int & got_frame ){
+	/* decode video frame */
+	AVL_MEASURE(uint64_t decode_start = ofGetSystemTime();)
+	int res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
+	AVL_MEASURE(uint64_t decode_end = ofGetSystemTime();)
+	AVL_MEASURE(cout << "decode_2 = " << (decode_end-decode_start)/1000.0 << endl;)
+	if (res < 0) {
+		fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(res));
+		return false;
+	}
+	
+	if (got_frame) {
+		lock_guard<mutex> lock(video_buffers_mutex);
+		AVL_MEASURE(uint64_t queue_start = ofGetSystemTime();)
+		queue_decoded_video_frame_vlocked();
+		AVL_MEASURE(uint64_t queue_end = ofGetSystemTime();)
+		AVL_MEASURE(cout << "queue_frame = " << (queue_end-queue_start)/1000.0 << endl;)
+		needsMoreVideo = false;
+		return true;
+	}
+	else{
+		return false;
+	}
+}
 
 // this is _mostly_ only called from the special happy thread!
 bool ofxAvVideoPlayer::decode_until( double t, double & decoded_t ){
@@ -640,11 +663,10 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	AVL_MEASURE(uint64_t cp_end = ofGetSystemTime();)
 	AVL_MEASURE(cout << "cp = " << (cp_end-cp_start)/1000.0 << endl;)
 	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
-	if(packet.pts != AV_NOPTS_VALUE) {
 		data->pts = decoded_frame->pkt_pts;
 		data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
+		cout << "T=" << data->t << endl;
 		AVL_MEASURE(cout << "V: t=" << data->t << "\t" << last_t << endl;)
-	}
 	
 	return true; 
 }
@@ -927,12 +949,15 @@ void ofxAvVideoPlayer::run_decoder(){
 			while( audio_frames_available > 0 && !wantsUnload && isPlaying){
 				ofSleepMillis(1);
 			}
-			next_seekTarget = 0;
-			requestedSeek = true;
+			
+			if( isPlaying ){
+				next_seekTarget = 0;
+				requestedSeek = true;
+			}
 			//last_pts = 0;
 		}
 		
-		if( requestedSeek && next_seekTarget >= 0){
+		if( requestedSeek && next_seekTarget >= 0 ){
 			requestedSeek = false;
 			//av_seek_frame(fmt_ctx,-1,next_seekTarget,AVSEEK_FLAG_ANY);
 /*			avcodec_flush_buffers(video_context);

@@ -172,6 +172,7 @@ private:
 	long long duration;
 	float volume;
 	bool decode_next_frame();
+	bool decode_video_frame( int & got_frame ); 
 	bool decode_until( double t, double & decoded_t );
 	bool queue_decoded_video_frame_vlocked();
 	bool copy_to_pixels_vlocked( ofxAvVideoData * data );
