@@ -62,7 +62,8 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 
 
 
-# Examples
+# Audio
+
 
 ## Example Read
 
@@ -141,6 +142,60 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 	delete amplitudes; 
 	
 <img src="docs/waveform.png" width="520">
+
+# Video
+
+## Play video (without audio)
+
+	class ofApp : public ofBaseApp{
+		// ...
+		ofxAvVideoPlayer player;
+	};
+	
+	//--------------------------------------------------------------
+	void ofApp::setup(){
+		player.load("testo.mp4");
+	}
+
+	void ofApp::draw(){
+		player.update();  // it's weird, but ... do this in draw(), not in update! 
+		player.draw( 10, 10 ); // draw at 10,10
+	}
+
+
+
+## Play video (with audio)
+
+
+
+	class ofApp : public ofBaseApp{
+		// ...
+		ofSoundStream soundStream;
+		ofxAvVideoPlayer player;
+		void audioOut( float * output, int bufferSize, int nChannels );
+	};
+	
+	//--------------------------------------------------------------
+	void ofApp::setup(){
+		// start a sound stream 
+		soundStream.setup(this, 2, 0, 44100, 512, 4);
+		
+		// tell the video player to use the same sample rate and channel count
+		player.setupAudioOut(2, 44100);
+		
+		// load the video 
+		player.loadSound("test.mp4");
+	}
+
+	void ofApp::draw(){
+		player.update();  // it's weird, but ... do this in draw(), not in update! 
+		player.draw( 10, 10 ); // draw at 10,10
+	}
+	
+	void ofApp::audioOut( float * output, int bufferSize, int nChannels ){
+		player.audioOut(output, bufferSize, nChannels ); 
+	}
+
 
 
 

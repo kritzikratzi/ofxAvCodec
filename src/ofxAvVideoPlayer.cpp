@@ -438,66 +438,8 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		// Handle audio stream
 		// ----------------------------------------------
 		if( packet.stream_index == audio_stream_idx && output_setup_called && audio_stream_idx >= 0 ){
-			len = avcodec_decode_audio4(audio_context, decoded_frame, &got_frame, &packet);
-			if (len < 0) {
-				// no data
-				return false;
-			}
+			decode_audio_frame(got_frame);
 			
-			if (got_frame) {
-				if( swr_context != NULL && output_config_changed ){
-					output_config_changed = false;
-					if( swr_context ){
-						swr_close(swr_context);
-						swr_free(&swr_context);
-						swr_context = NULL;
-					}
-				}
-				
-				if( swr_context == NULL ){
-					int input_channel_layout = decoded_frame->channel_layout;
-					if( input_channel_layout == 0 ){
-						input_channel_layout = av_get_default_channel_layout( audio_context->channels );
-					}
-					swr_context = swr_alloc_set_opts(NULL,
-													 output_channel_layout, AV_SAMPLE_FMT_FLT, output_sample_rate,
-													 input_channel_layout, (AVSampleFormat)decoded_frame->format, decoded_frame->sample_rate,
-													 0, NULL);
-					swr_init(swr_context);
-					
-					if (!swr_context){
-						fprintf(stderr, "Could not allocate resampler context\n");
-						return false;
-					}
-				}
-				
-				/* if a frame has been decoded, resample to desired rate */
-				int samples_per_channel = AVCODEC_MAX_AUDIO_FRAME_SIZE/output_num_channels;
-				//samples_per_channel = 512;
-				ofxAvAudioData * data = new ofxAvAudioData();
-				uint8_t * out = (uint8_t*)data->decoded_buffer;
-				int samples_converted = swr_convert(swr_context,
-													(uint8_t**)&out, samples_per_channel,
-													(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
-				data->decoded_buffer_len = samples_converted*output_num_channels;
-				data->decoded_buffer_pos = 0;
-				if(packet.pts != AV_NOPTS_VALUE) {
-					data->pts = (decoded_frame->pkt_pts)*output_sample_rate*av_q2d(audio_stream->time_base);
-					data->pts_native = decoded_frame->pkt_pts;
-					data->t = av_q2d(audio_stream->time_base)*(decoded_frame->pkt_pts);
-					AVL_MEASURE(cout << "A: t=" << data->t << "\t\t" << last_t << endl;)
-				}
-
-				lock_guard<mutex> lock(audio_queue_mutex);
-				audio_frames_available += samples_converted;
-				audio_queue.push(data);
-			}
-			
-			//todo: what does this do, really?
-			packet.size -= len;
-			packet.data += len;
-			//		packet->dts =
-			//		packet->pts = AV_NOPTS_VALUE;
 			return true;
 		}
 		// ----------------------------------------------
@@ -512,7 +454,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		// Unknown data stream
 		// ----------------------------------------------
 		else{
-			return false;
+			return true;
 		}
 	}
 	else{
@@ -576,6 +518,73 @@ bool ofxAvVideoPlayer::decode_video_frame( int & got_frame ){
 	}
 }
 
+bool ofxAvVideoPlayer::decode_audio_frame( int & got_frame ){
+	len = avcodec_decode_audio4(audio_context, decoded_frame, &got_frame, &packet);
+	if (len < 0) {
+		// no data
+		return false;
+	}
+	
+	if (got_frame) {
+		lock_guard<mutex> lock(audio_queue_mutex);
+		queue_decoded_audio_frame_alocked();
+	}
+	
+	packet.size -= len;
+	packet.data += len;
+	return true;
+}
+
+bool ofxAvVideoPlayer::queue_decoded_audio_frame_alocked(){
+	if( swr_context != NULL && output_config_changed ){
+		output_config_changed = false;
+		if( swr_context ){
+			swr_close(swr_context);
+			swr_free(&swr_context);
+			swr_context = NULL;
+		}
+	}
+	
+	if( swr_context == NULL ){
+		int input_channel_layout = decoded_frame->channel_layout;
+		if( input_channel_layout == 0 ){
+			input_channel_layout = av_get_default_channel_layout( audio_context->channels );
+		}
+		swr_context = swr_alloc_set_opts(NULL,
+										 output_channel_layout, AV_SAMPLE_FMT_FLT, output_sample_rate,
+										 input_channel_layout, (AVSampleFormat)decoded_frame->format, decoded_frame->sample_rate,
+										 0, NULL);
+		swr_init(swr_context);
+		
+		if (!swr_context){
+			fprintf(stderr, "Could not allocate resampler context\n");
+			return false;
+		}
+	}
+	
+	int samples_per_channel = AVCODEC_MAX_AUDIO_FRAME_SIZE/output_num_channels;
+	ofxAvAudioData * data = new ofxAvAudioData();
+	uint8_t * out = (uint8_t*)data->decoded_buffer;
+	int samples_converted = swr_convert(swr_context,
+										(uint8_t**)&out, samples_per_channel,
+										(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
+	data->decoded_buffer_len = samples_converted*output_num_channels;
+	data->decoded_buffer_pos = 0;
+	if(packet.pts != AV_NOPTS_VALUE) {
+		data->pts = (decoded_frame->pkt_pts)*output_sample_rate*av_q2d(audio_stream->time_base);
+		data->pts_native = decoded_frame->pkt_pts;
+		data->t = av_q2d(audio_stream->time_base)*(decoded_frame->pkt_pts);
+		AVL_MEASURE(cout << "A: t=" << data->t << "\t\t" << last_t << endl;)
+	}
+	
+	// the entire function must be called with an audio lock.
+	// in reality locking from here on out would be good enough.
+	audio_frames_available += samples_converted;
+	audio_queue.push(data);
+	
+	return true;
+}
+
 // this is _mostly_ only called from the special happy thread!
 bool ofxAvVideoPlayer::decode_until( double t, double & decoded_t ){
 decode_another:
@@ -603,7 +612,33 @@ decode_another:
 		// Handle audio stream
 		// ----------------------------------------------
 		if( packet.stream_index == audio_stream_idx ){
-			// do nothing!
+			// this could make seeking+then playing a lot more accurate
+			// by not just seeking on the video, but also on the audio stream.
+			// no time for experiments, unfortunately.
+			/*
+			 // do nothing!
+			len = avcodec_decode_audio4(audio_context, decoded_frame, &got_frame, &packet);
+			if (len < 0) {
+				// no data
+				return false;
+			}
+			
+			if (got_frame) {
+				double nextT = av_q2d(audio_stream->time_base)*decoded_frame->pkt_pts;
+				bool stillBehind = nextT < t;
+				bool notTooFarBehind = t - nextT < 5;
+				bool notTooLittleBehind = nextT+1/getFps()/2 < t;
+				if( stillBehind && notTooFarBehind && notTooLittleBehind ){
+					goto decode_another;
+				}
+				
+				queue_decoded_audio_frame_alocked(); 
+				decoded_t = nextT;
+			}
+			
+			packet.size -= len;
+			packet.data += len;
+			 */
 			goto decode_another;
 		}
 		// ----------------------------------------------
@@ -934,13 +969,13 @@ void ofxAvVideoPlayer::update(){
 		}
 		
 		// we're basically done, now check for the next frame, maybe.
-		if( isPlaying ){
+		if( isPlaying || texturePts == -1){
 			double dt = 1.0/getFps();
 			bool useVideoClock = !output_setup_called;
 			float numFramesPreloaded = useVideoClock?2.2:1.1;
 			double targetT = request_t+numFramesPreloaded*dt;
 			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(targetT);
-			if( nextFrame->t < request_t ) needsMoreVideo = true;
+			if( nextFrame->t < request_t || nextFrame->t == -1) needsMoreVideo = true;
 			
 			if( useVideoClock ){
 				last_t += ofGetLastFrameTime();
@@ -1006,9 +1041,6 @@ void ofxAvVideoPlayer::run_decoder(){
 				continue;
 			}
 
-			if( seek_target == 0 ){
-				seek_target = -1;
-			}
 			
 			int flags = AVSEEK_FLAG_ANY | AVSEEK_FLAG_BACKWARD;
 			
@@ -1054,7 +1086,12 @@ void ofxAvVideoPlayer::run_decoder(){
 			}
 			
 			double got_t = -1;
-			decode_until(want_t, got_t);
+			if( seek_target <= 0 ){
+				needsMoreVideo = true;
+			}
+			else{
+				decode_until(want_t, got_t);
+			}
 			
 			// cancel if there was another seek
 			if( requestedSeek ) continue;
@@ -1112,7 +1149,7 @@ void ofxAvVideoPlayer::run_decoder(){
 		
 		bool needsMoreAudio = audio_stream_idx >= 0 && output_setup_called && (audio_frames_available < output_sample_rate*0.3);
 		
-		if( isPlaying && (needsMoreAudio || (needsMoreVideo) ) ){
+		if( (needsMoreAudio || (needsMoreVideo) ) ){
 			AVL_MEASURE(uint64_t time_start = ofGetSystemTime();)
 			decode_next_frame();
 			AVL_MEASURE(uint64_t time_end = ofGetSystemTime();)
