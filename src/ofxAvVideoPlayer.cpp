@@ -482,6 +482,9 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 					restart_loop = true;
 				}
 			}
+			else{
+				needsMoreVideo = false;
+			}
 			
 			return false;
 		}
@@ -969,7 +972,7 @@ void ofxAvVideoPlayer::update(){
 		}
 		
 		// we're basically done, now check for the next frame, maybe.
-		if( isPlaying || texturePts == -1){
+		if( isPlaying || texturePts == -1 ){
 			double dt = 1.0/getFps();
 			bool useVideoClock = !output_setup_called;
 			float numFramesPreloaded = useVideoClock?2.2:1.1;
@@ -1149,7 +1152,7 @@ void ofxAvVideoPlayer::run_decoder(){
 		
 		bool needsMoreAudio = audio_stream_idx >= 0 && output_setup_called && (audio_frames_available < output_sample_rate*0.3);
 		
-		if( (needsMoreAudio || (needsMoreVideo) ) ){
+		if( (needsMoreAudio && isPlaying) || (needsMoreVideo) ){
 			AVL_MEASURE(uint64_t time_start = ofGetSystemTime();)
 			decode_next_frame();
 			AVL_MEASURE(uint64_t time_end = ofGetSystemTime();)
