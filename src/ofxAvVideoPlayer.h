@@ -221,7 +221,7 @@ private:
 	int audio_stream_idx; 
 	
 	SwsContext * sws_context; // context for video resampling/color conversion
-	
+
 	SwrContext * swr_context; // context for audio resampling/channel conversion
 	int output_sample_rate;
 	int64_t output_channel_layout;
@@ -257,6 +257,7 @@ private:
 	
 	int64_t last_pts;
 	double last_t;
+	int64_t decoder_last_audio_pts; // pts to fix resampling issues with the precise audio position
 	
 	bool needsMoreVideo;
 	bool restart_loop;
