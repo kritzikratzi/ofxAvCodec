@@ -598,10 +598,23 @@ bool ofxAvVideoPlayer::queue_decoded_audio_frame_alocked(){
 
 // this is _mostly_ only called from the special happy thread!
 bool ofxAvVideoPlayer::decode_until( double t, double & decoded_t ){
+	int lookForDelayedPackets = 20;
+	
 decode_another:
 	av_free_packet(&packet);
 	int res = av_read_frame(fmt_ctx, &packet);
 	bool didRead = res >= 0;
+	
+	if( !didRead && lookForDelayedPackets > 0 ){
+		// no data read...
+		// are frames hiding in the pipe?
+		packet.data = NULL;
+		packet.size = 0;
+		packet.stream_index = video_stream_idx;
+		packet_data_size = 0;
+		lookForDelayedPackets --;
+		didRead = true; 
+	}
 	
 	// another seek requested during our seek? cancel!
 	if( requestedSeek ) return false;
@@ -623,33 +636,6 @@ decode_another:
 		// Handle audio stream
 		// ----------------------------------------------
 		if( packet.stream_index == audio_stream_idx ){
-			// this could make seeking+then playing a lot more accurate
-			// by not just seeking on the video, but also on the audio stream.
-			// no time for experiments, unfortunately.
-			/*
-			 // do nothing!
-			len = avcodec_decode_audio4(audio_context, decoded_frame, &got_frame, &packet);
-			if (len < 0) {
-				// no data
-				return false;
-			}
-			
-			if (got_frame) {
-				double nextT = av_q2d(audio_stream->time_base)*decoded_frame->pkt_pts;
-				bool stillBehind = nextT < t;
-				bool notTooFarBehind = t - nextT < 5;
-				bool notTooLittleBehind = nextT+1/getFps()/2 < t;
-				if( stillBehind && notTooFarBehind && notTooLittleBehind ){
-					goto decode_another;
-				}
-				
-				queue_decoded_audio_frame_alocked(); 
-				decoded_t = nextT;
-			}
-			
-			packet.size -= len;
-			packet.data += len;
-			 */
 			goto decode_another;
 		}
 		// ----------------------------------------------
@@ -689,7 +675,6 @@ decode_another:
 		}
 	}
 	else{
-		// no data read...
 		return false;
 	}
 }
@@ -1017,6 +1002,7 @@ void ofxAvVideoPlayer::run_decoder(){
 				requestedSeek = true;
 			}
 			//last_pts = 0;
+			needsMoreVideo = true;
 		}
 		
 		if( requestedSeek && next_seekTarget >= 0 ){
@@ -1055,7 +1041,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			
 			int flags = AVSEEK_FLAG_ANY | AVSEEK_FLAG_BACKWARD;
 			
-			if(av_seek_frame(fmt_ctx, -1, seek_target, flags)) {
+			if(av_seek_frame(fmt_ctx, -1, seek_target, flags)<0) {
 				cerr << "error while seeking\n" << fileNameAbs << endl;
 				//last_t = 0;
 				//last_pts = 0;
@@ -1099,8 +1085,8 @@ void ofxAvVideoPlayer::run_decoder(){
 			double got_t = -1;
 			if( next_seekTarget == 0 ){
 				needsMoreVideo = true;
-				last_t = 0;
-				last_pts = 0;
+				//last_t = 0;
+				//last_pts = 0;
 				got_t = 0;
 			}
 			else{
@@ -1152,6 +1138,10 @@ void ofxAvVideoPlayer::run_decoder(){
 			}
 			
 			if( got_t == -1 ){
+				// emergency back to 0
+				av_seek_frame(fmt_ctx, -1, seek_target, AVSEEK_FLAG_BACKWARD|AVSEEK_FLAG_ANY);
+				if( video_stream_idx >= 0 ) avcodec_flush_buffers(video_context);
+				if( audio_stream_idx >= 0 ) avcodec_flush_buffers(audio_context);
 				// alright, jump to 0 :(
 				last_pts = 0;
 				last_t = 0;
@@ -1168,6 +1158,7 @@ void ofxAvVideoPlayer::run_decoder(){
 				audio_frames_available = 0;
 			}
 			
+
 			decoder_last_audio_pts = -1;
 			next_seekTarget = -1;
 		}
