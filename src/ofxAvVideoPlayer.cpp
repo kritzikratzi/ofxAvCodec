@@ -162,8 +162,8 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 		// allocate a bunch of images!
 		// we take 1.2 times frame rate (e.g. 36 frames for a 30fps video),
 		// and at least 30 frames to avoid big issues just in case r_frame_rate is a bit off.
-		int numBufferedFrames = (int)ofClamp(av_q2d(video_stream->r_frame_rate)*1.2, 30.0, 70.0);
-		ofLogVerbose() << "[ofxAvVideoPlayer] Buffering " << numBufferedFrames << endl;
+		int numBufferedFrames = (int)ofClamp(av_q2d(video_stream->r_frame_rate)*1.4, 30.0, 70.0);
+		ofLogError() << "[ofxAvVideoPlayer] Buffering " << numBufferedFrames << endl;
 		for( int i = 0; i < numBufferedFrames; i++ ){
 			ofxAvVideoData * data = new ofxAvVideoData();
 			int ret = av_image_alloc(data->video_dst_data, data->video_dst_linesize,
@@ -1163,7 +1163,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			next_seekTarget = -1;
 		}
 		
-		bool needsMoreAudio = audio_stream_idx >= 0 && output_setup_called && (audio_frames_available < output_sample_rate*0.3);
+		bool needsMoreAudio = audio_stream_idx >= 0 && output_setup_called && (audio_frames_available < output_sample_rate*0.5);
 		
 		if( (needsMoreAudio && isPlaying) || (needsMoreVideo) ){
 			AVL_MEASURE(uint64_t time_start = ofGetSystemTime();)
