@@ -59,6 +59,8 @@ public:
 	// same as waveformAsPath, but returns a mesh
 	// converts polyline result to a mesh (thread safe!)
 	static ofMesh waveformAsMesh( std::string filename, int resolution, float meshWidth = 1, float meshHeight = 1, float fixedDuratioInSeconds = -1 );
+
+	static string errorString(int errNum); 
 };
 
 #endif /* defined(__emptyExample__ofxAvUtils__) */

@@ -317,6 +317,11 @@ ofMesh ofxAvUtils::waveformAsMesh( std::string filename, int resolution, float m
 	return mesh;
 }
 
+string ofxAvUtils::errorString(int errNum) {
+	char str[AV_ERROR_MAX_STRING_SIZE];
+	av_strerror(errNum, str, AV_ERROR_MAX_STRING_SIZE);
+	return string(str);
+}
 
 static int ffmpeg_lockmgr_cb(void **mutex, enum AVLockOp op){
 	switch(op){

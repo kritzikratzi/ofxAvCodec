@@ -238,7 +238,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	}
 	
 	if( duration <= 0 ){
-		duration = 1000*fmt_ctx->duration*av_q2d(AV_TIME_BASE_Q);
+		duration = 1000 * fmt_ctx->duration*av_q2d(AVRational{ 1,AV_TIME_BASE });
 	}
 	
 	if( duration <= 0 ){
@@ -507,7 +507,7 @@ bool ofxAvVideoPlayer::decode_video_frame( int & got_frame ){
 	AVL_MEASURE(uint64_t decode_end = ofGetSystemTime();)
 	AVL_MEASURE(cout << "decode_2 = " << (decode_end-decode_start)/1000.0 << endl;)
 	if (res < 0) {
-		fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(res));
+		fprintf(stderr, "Error decoding video frame (%s)\n", ofxAvUtils::errorString(res).c_str());
 		return false;
 	}
 	
@@ -645,7 +645,7 @@ decode_another:
 			/* decode video frame */
 			res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
 			if (res < 0) {
-				fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(res));
+				fprintf(stderr, "Error decoding video frame (%s)\n", ofxAvUtils::errorString(res).c_str());
 				goto decode_another;
 			}
 			
