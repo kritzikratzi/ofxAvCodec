@@ -408,13 +408,10 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 			
 			if( num_samples_read >= bufferSize*nChannels ){
 				result.numFrames = bufferSize;
-				cout << "[ok]nread = " << num_samples_read/nChannels << " buff size = " << audio_queue.size() << endl;
 				return result;
 			}
 		}
 	}
-	
-	cout << "nread = " << num_samples_read/nChannels << " buff size = " << audio_queue.size() << endl;
 	
 	result.numFrames = num_samples_read/nChannels;
 	return result;
