@@ -338,4 +338,5 @@ static int ffmpeg_lockmgr_cb(void **mutex, enum AVLockOp op){
 			((ofMutex*)*mutex)->unlock();
 			return 0;
 	}
+	return 0; 
 }
