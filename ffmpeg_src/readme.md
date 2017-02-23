@@ -8,7 +8,8 @@ Links
 * The [compilation guide](https://trac.ffmpeg.org/wiki/CompilationGuide) official contains instructions for virtually all platforms. 
 * Shared libraries for Windows: [http://ffmpeg.zeranoe.com/builds/](http://ffmpeg.zeranoe.com/builds/)
 * Git repo with full source: git://source.ffmpeg.org/ffmpeg.git or from [https://github.com/FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg)
-* Included binaries were built from commit [https://github.com/FFmpeg/FFmpeg/commit/d5fcca83b915df9536d595a1a44c24294b606836](https://github.com/FFmpeg/FFmpeg/commit/d5fcca83b915df9536d595a1a44c24294b606836)
+* FFmpeg version used: 3.2.2 [https://github.com/FFmpeg/FFmpeg/commit/148c4fb8d203fdef8589ccef56a995724938918b](https://github.com/FFmpeg/FFmpeg/commit/148c4fb8d203fdef8589ccef56a995724938918b)
+* OpenH264 version used: [https://github.com/cisco/openh264/commit/47aedcf80821507029adf3adbd809aa8ee55f3b0](https://github.com/cisco/openh264/commit/47aedcf80821507029adf3adbd809aa8ee55f3b0)
 * Lots of information about when which codec is built and which configure flags are required: https://www.ffmpeg.org/ffmpeg-codecs.html
 
 Command Line
@@ -20,7 +21,7 @@ Command Line
 * `./configure --list-encoders` to list available encoders
 
 
-Compiling on Mac OS
+Compiling on Mac OS (**outdated. missing openh264! **!)
 ---
 The to create a universal binary run the following commands in the ffmpeg source directory: 
 
@@ -74,35 +75,77 @@ Btw: Directly after running configure you get a neat list of all enabled compone
 
 
 
-Compiling for Windows using Mac OS
+Compiling for Windows using Msys2
 ---
-Compiled using the build scripts from [https://github.com/rdp/ffmpeg-windows-build-helpers](https://github.com/rdp/ffmpeg-windows-build-helpers). A great little script that sets up mingw and generates shared libraries. Create a directory `ffmpeg_src/win/` and run 
-	
-	wget https://raw.github.com/rdp/ffmpeg-windows-build-helpers/master/cross_compile_ffmpeg.sh -O cross_compile_ffmpeg.sh
-	./cross_compile_ffmpeg.sh --build-ffmpeg-shared=y --build-ffmpeg-static=n
 
+Prerequisites: Install Msys2 and Visual Studio 2015. 
 
-Before doing anything, edit the file and look for the `build_ffmpeg()` function. A few lines into the function you can find the configure options used. I modified them as follows: 
+We will compile with MSVC as a compiler, and Msys2 to run the build scripts/have support for pkg-config.
+Because of this, getting a build console is slightly funky: 
 
-	  #original config options: 
-	  #config_options="--arch=$arch --target-os=mingw32 --cross-prefix=$cross_prefix --pkg-config=pkg-config --enable-gpl --enable-libsoxr --enable-fontconfig --enable-libass --enable-libutvideo --enable-libbluray --enable-iconv --enable-libtwolame --extra-cflags=-DLIBTWOLAME_STATIC --enable-libzvbi --enable-libcaca --enable-libmodplug --extra-libs=-lstdc++ --extra-libs=-lpng --enable-libvidstab --enable-libx265 --enable-decklink --extra-libs=-loleaut32 --enable-libx264 --enable-libxvid --enable-libmp3lame --enable-version3 --enable-zlib --enable-librtmp --enable-libvorbis --enable-libtheora --enable-libspeex --enable-libopenjpeg --enable-gnutls --enable-libgsm --enable-libfreetype --enable-libopus --disable-w32threads --enable-frei0r --enable-filter=frei0r --enable-libvo-aacenc --enable-bzlib --enable-libxavs --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libvo-amrwbenc --enable-libschroedinger --enable-libvpx --enable-libilbc --enable-libwavpack --enable-libwebp --enable-libgme --enable-dxva2 --enable-libdcadec --enable-avisynth $extra_configure_opts" 
-	  # new config options: 
-	  config_options="--arch=$arch --target-os=mingw32 --cross-prefix=$cross_prefix --pkg-config=pkg-config --extra-libs=-lstdc++ --disable-w32threads $extra_configure_opts"
-	  
+	# Start a "cmd.exe" window and set up environment variables
+	# You might have to adjust your visual studio path
+	"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" amd64
+	# Now move into the msys-64 shell: 
+	export PATH="C:\Program Files (x86)\Windows Kits\8.1\bin\x64":$PATH
+	c:\msys64\msys2_shell.bat -full-path
 
-Now you're ready to run the script. To the question: 
-`Would you like to include non-free (non GPL compatible) libraries`, answer no (N). 
+	# now the msys64 shell will open. 
+	# make sure the visual studio compiler works by typing:  
+	cl
 
-The script takes a while (1-3 hours). The resulting dll files are in <br>
-`sandbox/x86_64/ffmpeg_git_shared.installed/bin/` <br>
-`ffmpeg_git_shared.installed/bin/`
+	# In msys 64 shell: (close the old cmd window, we don't need it anymore)
+	# 1. Install build packages (i might be missing a few?)
+	pacman -S yasm
+	pacman -S pacman -S mingw-w64-x86_64-pkg-config
+	pacman -S pkg-config
+	pacman -S nasm
 
-Run ffmpeg.exe to verify that the correct configure options where in fact used. 
+	# 2. Build + Install openh264
+	cd $my_openh264_src_dir
+	git clone https://github.com/cisco/openh264.git
+	cd openh264
+ 	make ARCH=x86_64 OS=msvc
+ 	make install ARCH=x86_64 OS=msvc PREFIX=/mingw64
+ 	# instead of the prefix you can do: 
+	#export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig/":$PKG_CONFIG_PATH
 
+	# verify that this is now installed: 
+	# expected output: -L/usr/local/lib -lopenh264
+ 	pkg-config --libs openh264
 
-<i>Sometimes the script fails because sourceforge is having serious downtime issues. I found that it's usually easy to give the script a hand by downloading the correct version of the dependency yourself, then place it in the win32 and x86_64 folders. (or just do a manual git clone if you find a mirror of the code).</i>
+ 	# 3. Build+ Install ffmpeg 
+ 	cd $my_ffmpeg_src_dir
+ 	./configure --toolchain=msvc --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/dist64
 
-Compiling for Linux using Ubuntu
+ 	make -j 8
+ 	# if you get a linker error at this point: 
+ 	# on my system user32.dll wasn't linked, 
+ 	# a workaround is to edit config.mak, add user32.lib to LDFLAGS and then 
+ 	# run make -j 8 again. 
+
+ 	make install
+
+Great! Now we do the same thing for 32 bit libs: 
+
+	# Start again with a fresh cmd prompt: 
+	"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
+	# Move into msys32
+	start "C:\msys64\msys2_shell.cmd" -mingw32 -full-path
+
+	# 2. Build + Install openh264 (x86)
+	cd $my_openh264_src_dir
+ 	make ARCH=x86 OS=msvc
+ 	make install ARCH=x86 OS=msvc PREFIX=/mingw32
+
+	# verify that this is now installed: 
+	# expected output: -L/usr/local/lib -lopenh264
+ 	pkg-config --libs openh264
+
+ 	# 3. Build ffmpeg
+ 	./configure --toolchain=msvc --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/dist32
+
+Compiling for Linux using Ubuntu [outdated]
 ---
 
 This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu](FFmpeg guide for Ubuntu). The following steps assume a 64bit Ubuntu installation. 
