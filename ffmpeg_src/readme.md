@@ -1,6 +1,23 @@
 Useful infos for compiling FFmpeg/libavcodec
 ===
 
+About 
+---
+
+This guide explains how to compile the shared libraries needed for ofxAvCodec V0.2. 
+It features: 
+
+* FFmpeg 3.2.2, compiled as a shared library (LGPL)
+* Cisco openh264 ~jan 2017 (BSD)
+
+
+I have attempted my best to be as thorough as possible, but that doesn't mean following 
+the guide on your system will yield precicesly the same result. 
+Please read all instructions carefully and be prepared to make small adjustments during 
+the build process.  
+
+If you would like to avoid this alltogether, you can use a [binary release](https://github.com/kritzikratzi/ofxAvCodec/releases) instead.  
+
 
 Links
 ---
@@ -20,8 +37,7 @@ Command Line
 * `./configure --list-decoders` to list available decoders
 * `./configure --list-encoders` to list available encoders
 
-
-Compiling on Mac OS (**outdated. missing openh264! **!)
+Compiling on Mac OS
 ---
 The to create a universal binary run the following commands in the ffmpeg source directory: 
 
@@ -206,19 +222,3 @@ This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/U
 	
 	
 Good job! If all goes well you have two directories: `dist/x86_64` and `dist/i386`
-
-
-Special Licensing Considerations
----
-You can enable aac with the configuration option `--enable-nonfree`. FFmpeg has the following to say about this: 
-
-	The Fraunhofer AAC library, FAAC and aacplus are under licenses which
-	are incompatible with the GPLv2 and v3. We do not know for certain if their
-	licenses are compatible with the LGPL.
-	If you wish to enable these libraries, pass `--enable-nonfree` to configure.
-	But note that if you enable any of these libraries the resulting binary will
-	be under a complex license mix that is more restrictive than the LGPL and that
-	may result in additional obligations. It is possible that these
-	restrictions cause the resulting binary to be unredistributeable.
-
-To enable certain video codecs (like x264) the `--enable-gpl` flag can be added. This means your application will have to be released under the GPL as well. 
