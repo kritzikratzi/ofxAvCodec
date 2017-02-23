@@ -1,25 +1,11 @@
 ofxAvCodec
 ===
 
-# Announcement 
+# Stable version
 
-This library will soon be renamed and split in two libraries: 
+Checkout the git-tag `0.1-FINAL`. 
+The current master is unstable (i'm updating ffmpeg to 3.2.2). 
 
-* **ofxFFMpegUtils** will contain the source code from this repository (readers and writers for audio/video writer)
-* **ofxFFMpegLibs** will provide only the ffmpeg headers and binaries for as many platforms as possible. 
-  
-  
-The reason behind this is that it will allow me to quickly switch between different versions of the ffmpeg builds, and it will make it 
-possible to easily use your own minimized builds only supporting the necessary encoders/decoders. 
-
-Keep watching this readme for further updates. 
-
-
-# Also announcements
-
-
-* The osx version in first binary release contains an accidental dependency to libsdl and libxz. 
-* Development of video support takes place on the `video` branch. 
 
 
 ### About

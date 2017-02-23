@@ -25,19 +25,40 @@ Compiling on Mac OS (**outdated. missing openh264! **!)
 ---
 The to create a universal binary run the following commands in the ffmpeg source directory: 
 
-	# 1. Build 64 bit
+	# 1. Prepare openh264
+	cd $openh264_src_dir
+	sudo mv /usr/bin/nasm /usr/bin/nasm-osx
+	brew install nasm
+	
+	# Let's make a universal lib (we need it later!)
+	make clean && make OS=darwin ARCH=x86_64
+	mkdir dist
+	cp libopenh264.dylib dist/libopenh264-64bit.dylib
+	make clean && make OS=darwin ARCH=i386
+	cp libopenh264.dylib dist/libopenh264-32bit.dylib
+	# create a fat lib
+	lipo dist/libopenh264-32bit.dylib dist/libopenh264-64bit.dylib -output dist/libopenh264.dylib -create
+	# make install path relative
+	install_name_tool -id @executable_path/libopenh264.dylib libopenh264.dylib
+	
+	# 2. Build 64 bit
+	cd $openh264_src_dir
+	make OS=darwin ARCH=x86_64 install
+	cd $ffmpeg_src_dir
 	make clean
-	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs
+	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --enable-libopenh264
 	make && make install
 	mv @executable_path libs_64
 	
-	# 2. Build 32 bit
+	# 3. Build 32 bit
+	cd $openh264_src_dir
+	make OS=darwin ARCH=i386 clean install
 	make clean
-	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386
+	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --enable-libopenh264 --arch=i386
 	make && make install
 	mv @executable_path libs_32
 
-	# 3. Combine dylibs into fat libs and copy over symlinks
+	# 4. Combine dylibs into fat libs and copy over symlinks
 	mkdir libs
 	for file in libs_64/*.dylib
 	do
@@ -47,7 +68,20 @@ The to create a universal binary run the following commands in the ffmpeg source
 		fi
 	done
 	
-	# 4. Clean up a bit to be ready for the next build ... 
+	#5. replace the h264 dylib path
+	cd libs
+	for file in *.dylib
+	do
+		oldPath=$(otool -L $file | grep libopenh264 | cut -f 2 | cut -d " " -f 1 | tail -n 1)
+		newPath="@executable_path/libopenh264.dylib"
+		if [ !  -z $oldPath ] && [ $oldPath != $newPath ]
+		then
+			echo "$(basename $file)\n old: $oldPath\n new: $newPath"
+			install_name_tool -change "$oldPath" "$newPath" "$file"
+		fi
+	done
+	
+	# 5. Clean up a bit to be ready for the next build ... 
 	rm -rf libs_32 libs_64
 	mv libs libs-$(git rev-parse HEAD)
 
@@ -63,6 +97,7 @@ Btw: Directly after running configure you get a neat list of all enabled compone
 |`--enable-shared`|compile as shared libraries (disables static libs)|
 |`--shlibdir="@executable_path"`|tells each dylib to look for other dylibs in the same folder (i think)|
 |`--disable-indevs`|Disables input devices like qtkit. I added this flag to get rid of the shared lib dependency to jack audio|
+|`--enable-libopenh264`|enable+link against openh264|
 |`--extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386`|Create 32 bit binaries|
 
 
