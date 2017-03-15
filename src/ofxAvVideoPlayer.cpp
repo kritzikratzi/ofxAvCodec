@@ -371,7 +371,6 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 	
 	int num_samples_read = 0;
 	uint64_t pts = 0;
-	double t;
 	if( audio_queue.size() > 0 ){
 		ofxAvAudioData * data = audio_queue.front();
 		result.pts = data->pts + data->decoded_buffer_pos/output_num_channels;
