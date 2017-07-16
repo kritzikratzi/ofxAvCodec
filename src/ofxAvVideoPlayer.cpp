@@ -354,6 +354,7 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 	
 	lock_guard<mutex> lock(audio_queue_mutex);
 	if( audio_stream_idx < 0 ){
+		memset(output,0,bufferSize*nChannels*sizeof(float));
 		int64_t nextPts = last_pts + bufferSize;
 		double maxPts = duration*output_sample_rate/1000.0;
 		if( nextPts > maxPts ){
@@ -361,7 +362,7 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 		}
 		result.pts = nextPts;
 		result.t = result.pts/(double)output_sample_rate;
-		result.numFrames = bufferSize;
+		result.numFrames = nextPts-last_pts;
 		
 		last_t = result.t;
 		last_pts = result.pts;
