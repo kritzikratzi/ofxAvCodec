@@ -250,6 +250,37 @@ double ofxAvUtils::duration( std::string filename ){
 	return duration/(double)AV_TIME_BASE;
 }
 
+double ofxAvUtils::duration_audio( std::string filename ){
+	init();
+	AVFormatContext* pFormatCtx = avformat_alloc_context();
+	string file = ofToDataPath(filename);
+	avformat_open_input(&pFormatCtx, file.c_str(), NULL, NULL);
+	if(!pFormatCtx ){
+		avformat_free_context(pFormatCtx);
+		return 0.0;
+	}
+	
+	double duration = 0;
+	
+	int res = avformat_find_stream_info(pFormatCtx,NULL);
+	if(res>=0){
+		for(int i = 0; i < pFormatCtx->nb_streams; i++){
+			auto stream = pFormatCtx->streams[i];
+			if(stream->codec->codec_type == AVMEDIA_TYPE_AUDIO){
+				if(stream->time_base.den == 0) duration = 0;
+				else duration = stream->duration/(double)stream->time_base.num/stream->time_base.den;
+				break;
+			}
+		}
+	}
+
+	avformat_close_input(&pFormatCtx);
+	avformat_free_context(pFormatCtx);
+	
+	return duration;
+}
+
+
 float * ofxAvUtils::waveform( std::string filename, int resolution, float fixedDurationInSeconds ){
 	if( resolution < 1 ) return NULL;
 	
