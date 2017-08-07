@@ -1,10 +1,18 @@
 ofxAvCodec
 ===
 
-# Stable version
+# Version
 
-Checkout the git-tag `0.1-FINAL`. 
-The current master is unstable (i'm updating ffmpeg to 3.2.2). 
+Make sure to grab the correct binary from the `Releases` tab. 
+
+## v0.2 
+
+This is the current version. It seems stable enough and i suggest you use it. 
+Based on ffmpeg 3.2.2
+
+## v0.1
+
+This is the old version. Tiny features or bugfixes will now live on the v0.1 branch. 
 
 
 
@@ -190,4 +198,4 @@ A small wrapper around libavcodec - the magic library that is painful to use, bu
 libavcodec comes with a GPL/LGPL license. For convenience the precompiled binaries are included (compiled as shared libs, gpl plugins not enabled). I hope I made no mistake, FFmpeg maintains a hall of shame and you and I don't want to end up there. To be safe you could make your own build. To do so follow the notes in ffmpeg_src/readme.txt. 
 
 
-The license of this plugin itself is the MIT License, or the WTFPL. Have your pick. Either way, I do appreciate credits. 
+The license of this plugin itself is the MIT License. However, I do appreciate a tiny bit of credit if you end up using it. 
