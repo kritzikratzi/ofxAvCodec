@@ -181,12 +181,13 @@ public:
     void    draw(float x, float y, float w, float h);
     void    draw(float x, float y);
 
+	AVCodecID getVideoCodec(); 
 	
 private:
 	long long duration;
 	float volume;
 	bool decode_next_frame();
-	bool decode_video_frame( int & got_frame );
+	bool decode_video_frame( int & got_frame, bool maySkip = true );
 	bool decode_audio_frame( int & got_frame );
 	bool decode_until( double t, double & decoded_t );
 	bool queue_decoded_video_frame_vlocked();
@@ -258,6 +259,14 @@ private:
 	int64_t last_pts;
 	double last_t;
 	int64_t decoder_last_audio_pts; // pts to fix resampling issues with the precise audio position
+	
+	// currently only active when there is no audio track in the file
+	// very experimental, currently disabled in favor of allowSkipFrames
+	bool allowWaitForVideo = false; // allow frame skipping to catch up (only for the situation where no audio stream, but audio output is setup)
+	float waitForVideoDelta = 0;
+	
+	bool allowSkipFrames = true; // allow video frame skipping to catch up (only for the situation when there is no audio stream, but audio output is setup)
+	bool requestSkipFrame = false;
 	
 	bool needsMoreVideo;
 	bool restart_loop;

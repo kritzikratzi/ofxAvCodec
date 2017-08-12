@@ -17,11 +17,11 @@ extern "C"{
 	#include <libavutil/opt.h>
 }
 
-// for debugging:
-// #define AVL_MEASURE(x)
 // for release:
+// #define AVL_MEASURE(x)
+// for debug:
 // #define AVL_MEASURE(x) x
-#define AVL_MEASURE(x)
+#define AVL_MEASURE(x) 
 
 using namespace std;
 
@@ -289,6 +289,7 @@ void ofxAvVideoPlayer::unload(){
 	next_seekTarget = 0;
 	requestedSeek = false;
 	decoder_last_audio_pts = 0;
+	waitForVideoDelta = 0;
 	
 	audio_queue_mutex.lock();
 	while( audio_queue.size() > 0 ){
@@ -355,7 +356,13 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 	lock_guard<mutex> lock(audio_queue_mutex);
 	if( audio_stream_idx < 0 ){
 		memset(output,0,bufferSize*nChannels*sizeof(float));
-		int64_t nextPts = last_pts + bufferSize;
+		int64_t outLen = bufferSize;
+		if(allowWaitForVideo && waitForVideoDelta>0){
+			outLen = MAX(bufferSize/8,MIN(bufferSize,bufferSize-waitForVideoDelta*output_sample_rate));
+			waitForVideoDelta -= outLen/(float)output_sample_rate;
+		}
+		
+		int64_t nextPts = last_pts + outLen;
 		double maxPts = duration*output_sample_rate/1000.0;
 		if( nextPts > maxPts ){
 			nextPts = maxPts;
@@ -378,6 +385,12 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 		result.t = data->t + data->decoded_buffer_pos/output_num_channels/(double)output_sample_rate;
 		last_pts = data->pts_native +  data->decoded_buffer_pos/output_num_channels/(double)output_sample_rate/av_q2d(audio_stream->time_base);
 		last_t = result.t;
+	}
+	
+	
+	if(audio_frames_available < 2*bufferSize){
+		requestSkipFrame = true;
+		AVL_MEASURE(cout << "Request skip frame" << endl);
 	}
 	
 	while( audio_queue.size() > 0 ){
@@ -464,7 +477,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		packet.data = NULL;
 		packet.size = 0;
 		int got_frame;
-		if( decode_video_frame(got_frame) || got_frame ){
+		if( decode_video_frame(got_frame,false) || got_frame ){
 			// yep, we got another.
 			// back to the start. btw, this game could happen >3 times !
 			return true;
@@ -497,7 +510,15 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 	}
 }
 
-bool ofxAvVideoPlayer::decode_video_frame( int & got_frame ){
+bool ofxAvVideoPlayer::decode_video_frame( int & got_frame, bool maySkip ){
+
+	// maybe skip a frame?
+	if(allowSkipFrames && requestSkipFrame && maySkip){
+		requestSkipFrame = false;
+		got_frame = 0;
+		return false;
+	}
+	
 	/* decode video frame */
 	AVL_MEASURE(uint64_t decode_start = ofGetSystemTime();)
 	int res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
@@ -698,7 +719,7 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	av_image_copy(data->video_dst_data, data->video_dst_linesize,
 				  (const uint8_t**)decoded_frame->data, decoded_frame->linesize,
 				  video_context->pix_fmt, video_context->width, video_context->height);
-	
+	AVL_MEASURE(cout << "\tdata->pts = " << decoded_frame->pkt_pts << endl);
 	AVL_MEASURE(uint64_t cp_end = ofGetSystemTime();)
 	AVL_MEASURE(cout << "cp = " << (cp_end-cp_start)/1000.0 << endl;)
 	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
@@ -824,8 +845,9 @@ void ofxAvVideoPlayer::setPositionMS(long long ms){
 
 int ofxAvVideoPlayer::getPositionMS(){
 	if( !fileLoaded ) return 0;
-	int64_t ts = last_pts;
-	return av_time_to_millis( ts );
+	return audio_stream_idx<0&&output_setup_called?
+		av_rescale(1000*texturePts,video_stream->time_base.num,video_stream->time_base.den)
+		:av_time_to_millis( last_pts );
 }
 
 float ofxAvVideoPlayer::getPosition(){
@@ -969,6 +991,13 @@ void ofxAvVideoPlayer::update(){
 			double targetT = request_t+numFramesPreloaded*dt;
 			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(targetT);
 			if( nextFrame->t < request_t || nextFrame->t == -1) needsMoreVideo = true;
+			if( nextFrame->t < request_t && (request_t-nextFrame->t)>4*dt && allowWaitForVideo && audio_stream_idx<0){
+				AVL_MEASURE(cout << "CRAZY DELAY [" << (request_t-nextFrame->t) << "]. request skipframe!" << endl );
+				waitForVideoDelta = request_t-nextFrame->t - 2*dt;
+			}
+			else if(nextFrame->t < request_t && (request_t-nextFrame->t)>2*dt && allowSkipFrames){
+				requestSkipFrame = true;
+			}
 			
 			if( useVideoClock ){
 				last_t += ofGetLastFrameTime();
@@ -1169,7 +1198,7 @@ void ofxAvVideoPlayer::run_decoder(){
 			AVL_MEASURE(cout << "decode_time = " << (time_end-time_start)/1000.0 << endl;)
 		}
 		else{
-			ofSleepMillis(10);
+			ofSleepMillis(1);
 		}
 	}
 }
@@ -1189,10 +1218,10 @@ string ofxAvVideoPlayer::getInfo(){
 			float aspect = video_context->width/(float)video_context->height;
 			float eps = 0.001;
 			
-			if( fabsf(aspect-4.0/3.0) < eps ) info <<" (4:3)";
-			else if( fabsf(aspect-16.0/9.0) < eps ) info <<" (16:9)";
-			else if( fabsf(aspect-3.0/2.0) < eps ) info <<" (3:2)";
-			else if( fabsf(aspect-2.35/1.0) < eps ) info <<" (2.35:1)";
+			if( fabsf(aspect-4.0f/3.0f) < eps ) info <<" (4:3)";
+			else if( fabsf(aspect-16.0f/9.0f) < eps ) info <<" (16:9)";
+			else if( fabsf(aspect-3.0f/2.0f) < eps ) info <<" (3:2)";
+			else if( fabsf(aspect-2.35f/1.0f) < eps ) info <<" (2.35:1)";
 
 			info << " @ " << av_q2d(video_stream->r_frame_rate) << "fps" << endl;
 		}
@@ -1253,4 +1282,13 @@ void ofxAvVideoPlayer::draw(float _x, float _y, float _w, float _h) {
 
 void ofxAvVideoPlayer::draw(float _x, float _y) {
     draw(_x, _y, getWidth(), getHeight());
+}
+
+AVCodecID ofxAvVideoPlayer::getVideoCodec(){
+	if(!fileLoaded || wantsUnload || video_stream_idx<0 || !video_context){
+		return AV_CODEC_ID_NONE;
+	}
+	else{
+		return video_context->codec_id;
+	}
 }
