@@ -159,6 +159,9 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 		height = video_context->height;
 		pix_fmt = AV_PIX_FMT_RGB24;
 
+		// allow skip frames only for prores, which seems to decode particularly slow
+		allowSkipFrames = video_context->codec_id == AV_CODEC_ID_PRORES;
+
 		// allocate a bunch of images!
 		// we take 1.2 times frame rate (e.g. 36 frames for a 30fps video),
 		// and at least 30 frames to avoid big issues just in case r_frame_rate is a bit off.
