@@ -145,7 +145,7 @@ public:
 	// by default resampling is taken care of automatically (set it with setupAudioOut())
 	// with this you can disable the sampling and force the file's native data format.
 	// set it before .load
-	bool forceNativeAudioFormat;
+	bool forceNativeAudioFormat = false;
 	
 	/// \brief return a metadata item. available after load()
 	/// \return the string contents of the metadata item

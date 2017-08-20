@@ -259,6 +259,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 
 bool ofxAvVideoPlayer::setupAudioOut( int numChannels, int sampleRate ){
 	output_setup_called = true;
+	forceNativeAudioFormat = false;
 	
 	if( numChannels != output_num_channels || sampleRate != output_sample_rate ){
 		output_channel_layout = av_get_default_channel_layout(numChannels);
