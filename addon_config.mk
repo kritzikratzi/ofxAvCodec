@@ -29,8 +29,7 @@ common:
 	# include search paths, this will be usually parsed from the file system
 	# but if the addon or addon libraries need special search paths they can be
 	# specified here separated by spaces or one per line using +=
-	ADDON_INCLUDES = libs/avcodec/include
-	ADDON_INCLUDES += src
+	#ADDON_INCLUDES = 
 		
 	# any special flag that should be passed to the compiler when using this
 	# addon
@@ -60,8 +59,25 @@ common:
 	# when parsing the file system looking for libraries exclude this for all or
 	# a specific platform
 	# ADDON_LIBS_EXCLUDE =
+linux:
+	ADDON_LDFLAGS = -lavcodec -lavutil -lavformat -lswresample -lswscale
+	ADDON_SOURCES_EXCLUDE = libs/%	
+	ADDON_INCLUDES_EXCLUDE = libs/%	
+	
+linux64:
+	ADDON_LDFLAGS = -lavcodec -lavutil -lavformat -lswresample -lswscale	
+	ADDON_SOURCES_EXCLUDE = libs/%
+	ADDON_INCLUDES_EXCLUDE = libs/%		
+	
+osx:
+	ADDON_INCLUDES = libs/avcodec/include
+	ADDON_INCLUDES += src
+	
 msys2:
-	#ADDON_INCLUDES_EXCLUDE = libs/avcodec/include-vs/%	
+	ADDON_INCLUDES = libs/avcodec/include
+	ADDON_INCLUDES += src	
 
 vs: 
-	ADDON_INCLUDES += libs/avcodec/include-vs
+	ADDON_INCLUDES = libs/avcodec/include-vs
+	ADDON_INCLUDES += libs/avcodec/include
+	ADDON_INCLUDES += src
