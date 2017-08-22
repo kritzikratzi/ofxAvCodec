@@ -78,6 +78,6 @@ msys2:
 	ADDON_INCLUDES += src	
 
 vs: 
-	ADDON_INCLUDES += libs/avcodec/include-vs
-	ADDON_INCLUDES = libs/avcodec/include
+	ADDON_INCLUDES = libs/avcodec/include-vs
+	ADDON_INCLUDES += libs/avcodec/include
 	ADDON_INCLUDES += src
