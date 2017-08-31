@@ -18,7 +18,6 @@ the build process.
 
 If you would like to avoid this alltogether, you can use a [binary release](https://github.com/kritzikratzi/ofxAvCodec/releases) instead.  
 
-
 Links
 ---
 
@@ -220,5 +219,36 @@ This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/U
 	./configure  --prefix=`pwd`/dist/i386/ --enable-pic --enable-shared --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386
 	make && make install
 	
-	
+
 Good job! If all goes well you have two directories: `dist/x86_64` and `dist/i386`
+
+
+Compiling on Ubuntu with GCC [new, incomplete]
+
+	# First install the necessary dependencies and sources
+	sudo apt-get install nasm yasm pkg-config gcc-multilib
+	cd ffmpeg_src
+	git clone https://github.com/cisco/openh264.git
+
+
+	# Build openh264 32bit and 64bit
+	cd openh264
+ 	make ARCH=x86_64
+ 	make install ARCH=x86_64 PREFIX=`pwd`/../libs_64
+	make clean
+ 	make ARCH=x86
+ 	make install ARCH=x86 PREFIX=`pwd`/../libs_32
+
+
+	# On to the fun part, let's build ffmpeg fpr 32bit and 64 bit
+
+	(CFLAGS=-m64; LDFLAGS=-m64; PKG_CONFIG_PATH=`pwd`/../libs_64/lib/pkgconfig ./configure --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/../libs_64) 
+	make -j 8 && make install
+
+	make clean
+
+	(CFLAGS=-m32; LDFLAGS=-m32; PKG_CONFIG_PATH=`pwd`/../libs_32/lib/pkgconfig ./configure --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/../libs_32) 
+	make -j 8 && make install
+
+
+	already not bad, probably rpath issues to be fixed. 
