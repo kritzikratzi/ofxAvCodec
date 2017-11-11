@@ -41,6 +41,9 @@ public:
 	// file duration in seconds
 	static double duration( std::string filename );
 	
+	// duration of any audio stream in the file in seconds
+	static double duration_audio(std::string filename);
+
 	// mono amplitude preview
 	// you must delete[] this yourself!
 	// filename: yep, the name of the file
