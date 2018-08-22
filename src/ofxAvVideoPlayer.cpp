@@ -734,7 +734,9 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	return true; 
 }
 
-bool ofxAvVideoPlayer::copy_to_pixels_vlocked( ofxAvVideoData * data ){
+bool ofxAvVideoPlayer::copy_to_pixels_vlocked( ofPixels & video_pixels, ofxAvVideoData * data ){
+	if(!video_context) return false;
+	
 	if( sws_context == NULL ){
 		// Create context
 		AVPixelFormat pixFormat = video_context->pix_fmt;
@@ -930,6 +932,20 @@ const ofPixels & ofxAvVideoPlayer::getPixels(){
 	return video_pixels;
 }
 
+ofPixels ofxAvVideoPlayer::getPixelsForFrameIfAvailable(int frameNum){
+	ofPixels result;
+	float request_t = frameNum/av_q2d(video_stream->r_frame_rate);
+	lock_guard<mutex> lock(video_buffers_mutex);
+	ofxAvVideoData * data = video_data_for_time_vlocked(request_t);
+	if(fabs(data->t - request_t)<0.001){
+		copy_to_pixels_vlocked(result, data);
+	}
+	
+	
+	return result;
+}
+
+
 int ofxAvVideoPlayer::getFrameNumber(){
 	if( !isLoaded() ) return 0;
 	// this is not ideal! in fact: it's simply not working yet! 
@@ -938,7 +954,7 @@ int ofxAvVideoPlayer::getFrameNumber(){
 }
 
 double ofxAvVideoPlayer::getFps(){
-	if( !isLoaded() ) return 0; 
+	if( !isLoaded() ) return 1;
 	return av_q2d(video_stream->r_frame_rate); 
 }
 
@@ -949,7 +965,7 @@ ofxAvVideoData * ofxAvVideoPlayer::video_data_for_time_vlocked( double t ){
 	bool needsMoreVideo = true;
 	int j = 0, bestJ = 0;
 	for( ofxAvVideoData * buffer : video_buffers ){
-		double distance = fabs(buffer->t - last_t);
+		double distance = fabs(buffer->t - t);
 		if( buffer->t > -1 && distance < bestDistance ){
 			data = buffer;
 			bestDistance = distance;
@@ -982,7 +998,7 @@ void ofxAvVideoPlayer::update(){
 			if( !texture.isAllocated() || texture.getWidth() != width || texture.getHeight() != height ){
 				texture.allocate( width, height, GL_RGB );
 			}
-			copy_to_pixels_vlocked(data);
+			copy_to_pixels_vlocked(video_pixels, data);
 			texture.loadData(video_pixels);
 			texturePts = data->pts;
 		}
@@ -991,7 +1007,7 @@ void ofxAvVideoPlayer::update(){
 		if( isPlaying || texturePts == -1 ){
 			double dt = 1.0/getFps();
 			bool useVideoClock = !output_setup_called;
-			float numFramesPreloaded = useVideoClock?2.2:1.1;
+			float numFramesPreloaded = useVideoClock?7.1:7.1;//git-forbid
 			double targetT = request_t+numFramesPreloaded*dt;
 			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(targetT);
 			if( nextFrame->t < request_t || nextFrame->t == -1) needsMoreVideo = true;

@@ -159,6 +159,8 @@ public:
 	// \brief returns the video texture
 	ofTexture &getTexture();
 	const ofPixels & getPixels();
+	ofPixels getPixelsForFrameIfAvailable(int frameNum);
+	
 	int getFrameNumber();
 	double getFps(); 
 	string getFile();
@@ -192,7 +194,7 @@ private:
 	bool decode_until( double t, double & decoded_t );
 	bool queue_decoded_video_frame_vlocked();
 	bool queue_decoded_audio_frame_alocked();
-	bool copy_to_pixels_vlocked( ofxAvVideoData * data );
+	bool copy_to_pixels_vlocked( ofPixels & video_pixels, ofxAvVideoData * data );
 	ofxAvVideoData * video_data_for_time_vlocked( double t );
 	
 	bool fileLoaded;
