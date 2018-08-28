@@ -677,6 +677,7 @@ decode_another:
 				bool notTooFarBehind = t - nextT < 5;
 				bool notTooLittleBehind = nextT+1/getFps()/2 < t;
 				if( stillBehind && notTooFarBehind && notTooLittleBehind ){
+					queue_decoded_video_frame_vlocked();
 					goto decode_another;
 				}
 
@@ -729,6 +730,7 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
 	data->pts = decoded_frame->pkt_pts;
 	data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
+	cout << "got " << data->t << endl;
 	AVL_MEASURE(cout << "V: t=" << data->t << "\t" << last_t << endl;)
 	
 	return true; 
@@ -962,7 +964,7 @@ ofxAvVideoData * ofxAvVideoPlayer::video_data_for_time_vlocked( double t ){
 	ofxAvVideoData * data = video_buffers[0];
 	double bestDistance = 10;
 	
-	bool needsMoreVideo = true;
+
 	int j = 0, bestJ = 0;
 	for( ofxAvVideoData * buffer : video_buffers ){
 		double distance = fabs(buffer->t - t);
