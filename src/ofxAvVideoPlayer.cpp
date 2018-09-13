@@ -85,45 +85,6 @@ ofxAvVideoPlayer::~ofxAvVideoPlayer(){
 	unload();
 }
 
-static int open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type){
-	int ret, stream_index;
-	AVStream *st;
-	AVCodecContext *dec_ctx = NULL;
-	AVCodec *dec = NULL;
-	AVDictionary *opts = NULL;
-	
-	ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
-	if (ret < 0) {
-		fprintf(stderr, "Could not find %s stream in input file\n", av_get_media_type_string(type));
-		return ret;
-	}
-	else {
-		stream_index = ret;
-		st = fmt_ctx->streams[stream_index];
-		
-		/* find decoder for the stream */
-		dec_ctx = st->codec;
-		if( type == AVMEDIA_TYPE_VIDEO){
-			av_opt_set(dec_ctx->priv_data, "tune", "zerolatency", 0);
-			dec_ctx->thread_type = FF_THREAD_SLICE | FF_THREAD_FRAME;
-		}
-		dec = avcodec_find_decoder(dec_ctx->codec_id);
-		if (!dec) {
-			fprintf(stderr, "Failed to find %s codec\n", av_get_media_type_string(type));
-			return AVERROR(EINVAL);
-		}
-		if ((ret = avcodec_open2(dec_ctx, dec, &opts)) < 0) {
-			fprintf(stderr, "Failed to open %s codec\n", av_get_media_type_string(type));
-			return ret;
-		}
-		av_dict_set(&opts, "refcounted_frames", "1", 0);
-		*stream_idx = stream_index;
-	}
-	
-	return 0;
-}
-
-
 bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	unload();
 	fileNameAbs = ofToDataPath(fileName,true);
@@ -149,7 +110,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	// ----------------------------------------------
 	// Find video stream
 	// ----------------------------------------------
-	if (open_codec_context(&video_stream_idx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
+	if (ofxAvUtils::openCodecContext(&video_stream_idx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
 		video_stream = fmt_ctx->streams[video_stream_idx];
 		video_context = video_stream->codec;
 
@@ -187,7 +148,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 	// Find audio stream
 	// ----------------------------------------------
 	audio_stream_idx = -1;
-	if(open_codec_context(&audio_stream_idx, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0){
+	if(ofxAvUtils::openCodecContext(&audio_stream_idx, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0){
 		audio_stream = fmt_ctx->streams[audio_stream_idx];
 		audio_context = audio_stream->codec;
 	}
@@ -1009,7 +970,7 @@ void ofxAvVideoPlayer::update(){
 		if( isPlaying || texturePts == -1 ){
 			double dt = 1.0/getFps();
 			bool useVideoClock = !output_setup_called;
-			float numFramesPreloaded = useVideoClock?7.1:7.1;//git-forbid
+			float numFramesPreloaded = useVideoClock?8:8;//git-forbid
 			double targetT = request_t+numFramesPreloaded*dt;
 			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(targetT);
 			if( nextFrame->t < request_t || nextFrame->t == -1) needsMoreVideo = true;

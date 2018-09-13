@@ -10,6 +10,13 @@
 #include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
 #include <Poco/Path.h>
+extern "C"{
+	#include <libavutil/opt.h>
+	#include <libavformat/avformat.h>
+	#include <libavformat/avio.h>
+	#include <libavutil/imgutils.h>
+	#include <libswscale/swscale.h>
+}
 
 using namespace std;
 
@@ -369,4 +376,280 @@ static int ffmpeg_lockmgr_cb(void **mutex, enum AVLockOp op){
 			return 0;
 	}
 	return 0; 
+}
+
+vector<shared_ptr<ofPixels>> ofxAvUtils::readVideoFrames( std::string filename, int startFrame, int endFrame){
+	init();
+	
+	string input_filename = ofToDataPath(filename,true);
+	AVFormatContext* fmt_ctx = nullptr;
+	AVCodecContext* video_context = nullptr;
+	AVStream * video_stream = nullptr;
+	AVPixelFormat pix_fmt;
+	int video_stream_idx;
+	SwsContext * sws_context = nullptr;
+	int width;
+	int height;
+
+	// packet with encoded data (who knows what's inside)
+	AVFrame *decoded_frame = nullptr;
+	AVPacket packet;
+	int packet_data_size;
+
+	// decoded data (any format, but maybe some kind of pixels already)
+	uint8_t *video_dst_data[4] = {nullptr};
+	int      video_dst_linesize[4];
+	int video_dst_bufsize;
+	
+	// we need those later during video decoding
+	bool readMore = true;
+	int lookForDelayedPackets = 20;
+	int currentFrame = -1;
+
+
+	vector<shared_ptr<ofPixels>> result;
+	
+	
+	if (avformat_open_input(&fmt_ctx, input_filename.c_str(), NULL, NULL) < 0) {
+		cout << "Could not open file" << endl;
+		goto readVideoFramesExitEarly;
+	}
+	
+	if (avformat_find_stream_info(fmt_ctx,NULL) < 0) {
+		cout << "Could not find file info" << endl;
+		goto readVideoFramesExitEarly;
+	}
+
+	if (openCodecContext(&video_stream_idx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {
+		video_stream = fmt_ctx->streams[video_stream_idx];
+		video_context = video_stream->codec;
+		
+		/* allocate image where the decoded image will be put */
+		// we will use the swr resampling context to fill out the data!
+		width = video_context->width;
+		height = video_context->height;
+		pix_fmt = AV_PIX_FMT_RGB24;
+		
+		//LATER:
+		int ret = av_image_alloc(video_dst_data, video_dst_linesize,
+								 video_context->width, video_context->height, video_context->pix_fmt, 1);
+		if (ret < 0) {
+			cout << "Could not allocate raw video buffer" << endl;
+			goto readVideoFramesExitEarly;
+		}
+
+	}
+	
+	if( video_stream_idx == -1 ){
+		cout << "Could not find a video stream" << endl;
+		goto readVideoFramesExitEarly;
+	}
+	
+	av_init_packet(&packet);
+	packet.data = NULL;
+	packet.size = 0;
+	
+	
+	// decode frames ...
+	while( readMore ){
+		av_free_packet(&packet);
+		int res = av_read_frame(fmt_ctx, &packet);
+		bool didRead = res >= 0;
+		
+		if( !didRead && lookForDelayedPackets > 0 ){
+			// no data read...
+			// are frames hiding in the pipe?
+			packet.data = NULL;
+			packet.size = 0;
+			packet.stream_index = video_stream_idx;
+			packet_data_size = 0;
+			lookForDelayedPackets --;
+			continue;
+		}
+		else if(!didRead){
+			break;
+		}
+		
+		if( didRead ){
+			int got_frame = 0;
+			if (!decoded_frame) {
+				if (!(decoded_frame = av_frame_alloc())) {
+					fprintf(stderr, "Could not allocate data frame\n");
+					goto readVideoFramesExitEarly;
+				}
+			}
+			else{
+				av_frame_unref(decoded_frame);
+			}
+
+			// Handle video stream
+			if(packet.stream_index == video_stream_idx ){
+				/* decode video frame */
+				res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
+				if (res < 0) {
+					fprintf(stderr, "Error decoding video frame (%s)\n", ofxAvUtils::errorString(res).c_str());
+					continue;
+				}
+				
+				if (got_frame) {
+					double t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
+					cout << "got frame at " << t << endl;
+					if (decoded_frame->width != width || decoded_frame->height != height /*|| decoded_frame->format != pix_fmt*/) {
+						/* To handle this change, one could call av_image_alloc again and
+						 * decode the following frames into another rawvideo file. */
+						fprintf(stderr, "Error: Width, height and pixel format have to be "
+								"constant in a rawvideo file, but the width, height or "
+								"pixel format of the input video changed:\n"
+								"old: width = %d, height = %d, format = %s\n"
+								"new: width = %d, height = %d, format = %s\n",
+								width, height, av_get_pix_fmt_name(pix_fmt),
+								decoded_frame->width, decoded_frame->height,
+								av_get_pix_fmt_name((AVPixelFormat)decoded_frame->format));
+						goto readVideoFramesExitEarly;
+					}
+					else{
+						currentFrame ++;
+						if(currentFrame<startFrame) continue;
+						if(endFrame>0 && currentFrame>endFrame) break;
+						
+						av_image_copy(video_dst_data, video_dst_linesize,
+									  (const uint8_t**)decoded_frame->data, decoded_frame->linesize,
+									  video_context->pix_fmt, video_context->width, video_context->height);
+
+					
+					
+						if( sws_context == NULL ){
+							// Create context
+							AVPixelFormat pixFormat = video_context->pix_fmt;
+							switch (video_stream->codec->pix_fmt) {
+								case AV_PIX_FMT_YUVJ420P :
+									pixFormat = AV_PIX_FMT_YUV420P;
+									break;
+								case AV_PIX_FMT_YUVJ422P  :
+									pixFormat = AV_PIX_FMT_YUV422P;
+									break;
+								case AV_PIX_FMT_YUVJ444P   :
+									pixFormat = AV_PIX_FMT_YUV444P;
+									break;
+								case AV_PIX_FMT_YUVJ440P :
+									pixFormat = AV_PIX_FMT_YUV440P;
+								default:
+									pixFormat = video_stream->codec->pix_fmt;
+									break;
+							}
+							sws_context = sws_getContext(
+														 // source
+														 video_context->width, video_context->height, video_context->pix_fmt,
+														 // dest
+														 video_context->width, video_context->height, AV_PIX_FMT_RGB24,
+														 // flags / src filter / dest filter / param
+														 SWS_FAST_BILINEAR, NULL, NULL, NULL );
+							
+							
+							// transfer color space from decoder to encoder
+							int *coefficients;
+							const int *new_coefficients;
+							int full_range;
+							int brightness, contrast, saturation;
+							bool use_full_range = 0;
+							
+							if ( sws_getColorspaceDetails( sws_context, &coefficients, &full_range, &coefficients, &full_range,
+														  &brightness, &contrast, &saturation ) != -1 )
+							{
+								new_coefficients = sws_getCoefficients(video_stream->codec->colorspace);
+								sws_setColorspaceDetails( sws_context, new_coefficients, full_range, new_coefficients, full_range,
+														 brightness, contrast, saturation );
+							}
+						}
+						
+						
+						shared_ptr<ofPixels> video_pixels = make_shared<ofPixels>();
+						video_pixels->allocate(width, height, OF_IMAGE_COLOR);
+						uint8_t * video_pixel_data = video_pixels->getData();
+						uint8_t * dst[4] = {video_pixel_data, 0, 0, 0};
+						int linesize[4] = {3*width,0,0,0};
+						sws_scale(sws_context,
+								  // src slice / src stride
+								  video_dst_data, video_dst_linesize,
+								  // src slice y / src slice h
+								  0, height,
+								  // destinatin / destination stride
+								  dst, linesize );
+						
+						result.push_back(video_pixels);
+					}
+				}
+			}
+		}
+	}
+	
+	
+readVideoFramesExitEarly:
+	// clean up
+	av_freep(&video_dst_data[0]);
+	av_free_packet(&packet);
+	if(video_context){
+		avcodec_close(video_context);
+		video_context = NULL;
+	}
+
+	if( decoded_frame ){
+		//TODO: do we really need the unref here?
+		av_frame_unref(decoded_frame);
+		av_frame_free(&decoded_frame);
+		decoded_frame = NULL;
+	}
+
+	if( fmt_ctx ){
+		avformat_close_input(&fmt_ctx);
+		avformat_free_context(fmt_ctx);
+		av_free(fmt_ctx);
+		fmt_ctx = NULL;
+		video_context = NULL;
+	}
+	
+	if( sws_context ){
+		sws_freeContext(sws_context);
+		sws_context = NULL;
+	}
+
+	return result;
+}
+
+int ofxAvUtils::openCodecContext(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type){
+	int ret, stream_index;
+	AVStream *st;
+	AVCodecContext *dec_ctx = NULL;
+	AVCodec *dec = NULL;
+	AVDictionary *opts = NULL;
+	
+	ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
+	if (ret < 0) {
+		fprintf(stderr, "Could not find %s stream in input file\n", av_get_media_type_string(type));
+		return ret;
+	}
+	else {
+		stream_index = ret;
+		st = fmt_ctx->streams[stream_index];
+		
+		/* find decoder for the stream */
+		dec_ctx = st->codec;
+		if( type == AVMEDIA_TYPE_VIDEO){
+			av_opt_set(dec_ctx->priv_data, "tune", "zerolatency", 0);
+			dec_ctx->thread_type = FF_THREAD_SLICE | FF_THREAD_FRAME;
+		}
+		dec = avcodec_find_decoder(dec_ctx->codec_id);
+		if (!dec) {
+			fprintf(stderr, "Failed to find %s codec\n", av_get_media_type_string(type));
+			return AVERROR(EINVAL);
+		}
+		if ((ret = avcodec_open2(dec_ctx, dec, &opts)) < 0) {
+			fprintf(stderr, "Failed to open %s codec\n", av_get_media_type_string(type));
+			return ret;
+		}
+		av_dict_set(&opts, "refcounted_frames", "1", 0);
+		*stream_idx = stream_index;
+	}
+	
+	return 0;
 }
