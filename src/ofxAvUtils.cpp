@@ -493,7 +493,7 @@ vector<shared_ptr<ofPixels>> ofxAvUtils::readVideoFrames( std::string filename, 
 				
 				if (got_frame) {
 					double t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
-					cout << "got frame at " << t << endl;
+					//cout << "got frame at " << t << endl;
 					if (decoded_frame->width != width || decoded_frame->height != height /*|| decoded_frame->format != pix_fmt*/) {
 						/* To handle this change, one could call av_image_alloc again and
 						 * decode the following frames into another rawvideo file. */

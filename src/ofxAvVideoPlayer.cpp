@@ -691,7 +691,7 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
 	data->pts = decoded_frame->pkt_pts;
 	data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
-	cout << "got " << data->t << endl;
+//	cout << "got " << data->t << endl;
 	AVL_MEASURE(cout << "V: t=" << data->t << "\t" << last_t << endl;)
 	
 	return true; 
