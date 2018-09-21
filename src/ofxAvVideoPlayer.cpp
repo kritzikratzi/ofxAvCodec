@@ -955,6 +955,10 @@ void ofxAvVideoPlayer::update(){
 		// fudge it, we don't need a lock! ^^
 //		lock_guard<mutex> lock(video_buffers_mutex);
 		double request_t = last_t;
+		bool useVideoClock = !output_setup_called;
+		float numFramesPreloaded = useVideoClock?8:8;//git-forbid
+		double dt = 1.0/getFps();
+		
 		ofxAvVideoData * data = video_data_for_time_vlocked(request_t);
 		
 		if( texturePts != data->pts ){
@@ -968,12 +972,11 @@ void ofxAvVideoPlayer::update(){
 		
 		// we're basically done, now check for the next frame, maybe.
 		if( isPlaying || texturePts == -1 ){
-			double dt = 1.0/getFps();
-			bool useVideoClock = !output_setup_called;
-			float numFramesPreloaded = useVideoClock?8:8;//git-forbid
 			double targetT = request_t+numFramesPreloaded*dt;
 			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(targetT);
-			if( nextFrame->t < request_t || nextFrame->t == -1) needsMoreVideo = true;
+			if( nextFrame->t < request_t || nextFrame->t == -1){
+				needsMoreVideo = true;
+			}
 			if( nextFrame->t < request_t && (request_t-nextFrame->t)>4*dt && allowWaitForVideo && audio_stream_idx<0){
 				AVL_MEASURE(cout << "CRAZY DELAY [" << (request_t-nextFrame->t) << "]. request skipframe!" << endl );
 				waitForVideoDelta = request_t-nextFrame->t - 2*dt;
@@ -985,6 +988,15 @@ void ofxAvVideoPlayer::update(){
 			if( useVideoClock ){
 				last_t += ofGetLastFrameTime();
 				last_pts = last_t/av_q2d(video_stream->time_base);
+			}
+		}
+		else{
+			for(int i = 1; i <= numFramesPreloaded; i++){
+				double req = request_t + i*dt;
+				ofxAvVideoData * data = video_data_for_time_vlocked(req);
+				if(fabs(req-data->t)>dt){
+					needsMoreVideo = true;
+				}
 			}
 		}
 		
