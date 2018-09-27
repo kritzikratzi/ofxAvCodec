@@ -896,11 +896,12 @@ const ofPixels & ofxAvVideoPlayer::getPixels(){
 }
 
 ofPixels ofxAvVideoPlayer::getPixelsForFrameIfAvailable(int frameNum){
+	if (!video_stream) return ofPixels(); 
 	ofPixels result;
 	float request_t = frameNum/av_q2d(video_stream->r_frame_rate);
 	lock_guard<mutex> lock(video_buffers_mutex);
 	ofxAvVideoData * data = video_data_for_time_vlocked(request_t);
-	if(fabs(data->t - request_t)<0.001){
+	if(data && fabs(data->t - request_t)<0.001){
 		copy_to_pixels_vlocked(result, data);
 	}
 	
