@@ -271,9 +271,10 @@ private:
 	bool requestSkipFrame = false;
 	
 	bool needsMoreVideo;
+	bool want_restart_loop = false; 
 	bool restart_loop;
 	string fileNameAbs;
-	string fileNameBase; 
+	string fileNameBase;
 };
 
 #endif

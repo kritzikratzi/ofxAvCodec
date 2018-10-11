@@ -351,6 +351,15 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 		last_pts = data->pts_native +  data->decoded_buffer_pos/output_num_channels/(double)output_sample_rate/av_q2d(audio_stream->time_base);
 		last_t = result.t;
 	}
+	else if(last_pts>0 && want_restart_loop){
+		want_restart_loop = false;
+		if(isLooping){
+			restart_loop = true;
+		}
+		else{
+			isPlaying = false;
+		}
+	}
 	
 	
 	if(audio_frames_available < 2*bufferSize){
@@ -451,24 +460,15 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		
 		
 		packet_data_size = 0;
-		//TODO: clear out all buffers!
-		if( isLooping ){
-			//avformat_seek_file(fmt_ctx,audio_stream_idx,0,0,0,AVSEEK_FLAG_ANY);
-			//avcodec_flush_buffers(audio_context);
-			//decode_next_frame();
-			if( isPlaying ){
-				if( last_pts > 0 ){
-					restart_loop = true;
-				}
-			}
-			else{
-				needsMoreVideo = false;
-			}
-			
-			return false;
+		//avformat_seek_file(fmt_ctx,audio_stream_idx,0,0,0,AVSEEK_FLAG_ANY);
+		//avcodec_flush_buffers(audio_context);
+		//decode_next_frame();
+		if( isPlaying ){
+			// resetting is taken care of in audioOut/update depending if it's a or v synced
+			want_restart_loop = true;
 		}
 		else{
-			isPlaying = false;
+			needsMoreVideo = false;
 		}
 		
 		return false;
@@ -950,6 +950,16 @@ void ofxAvVideoPlayer::update(){
 	
 	if( !fileLoaded ){
 		return;
+	}
+	
+	if(want_restart_loop && (audio_stream_idx < 0 || !output_setup_called) && last_pts>0){
+		want_restart_loop = false;
+		if(isLooping){
+			restart_loop = true;
+		}
+		else{
+			isPlaying = false;
+		}
 	}
 	
 	if( true ){
