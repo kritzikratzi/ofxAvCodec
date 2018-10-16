@@ -691,6 +691,7 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
 	data->pts = decoded_frame->pkt_pts;
 	data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
+	decoder_last_video_t = data->t;
 //	cout << "got " << data->t << endl;
 	AVL_MEASURE(cout << "V: t=" << data->t << "\t" << last_t << endl;)
 	
@@ -1002,13 +1003,9 @@ void ofxAvVideoPlayer::update(){
 			}
 		}
 		else{
-			for(int i = 1; i <= numFramesPreloaded; i++){
-				double req = request_t + i*dt;
-				ofxAvVideoData * data = video_data_for_time_vlocked(req);
-				if(fabs(req-data->t)>dt){
-					needsMoreVideo = true;
-				}
-			}
+			double req = request_t + numFramesPreloaded*dt;
+			bool videoOk = true;
+			if(decoder_last_video_t<req) needsMoreVideo = true;
 		}
 		
 /*		for( int i = 0; i < video_buffers.size(); i++ ){

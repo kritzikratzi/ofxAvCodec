@@ -261,6 +261,7 @@ private:
 	int64_t last_pts;
 	double last_t;
 	int64_t decoder_last_audio_pts; // pts to fix resampling issues with the precise audio position
+	double decoder_last_video_t;
 	
 	// currently only active when there is no audio track in the file
 	// very experimental, currently disabled in favor of allowSkipFrames
