@@ -986,7 +986,7 @@ void ofxAvVideoPlayer::update(){
 		if( isPlaying || texturePts == -1 ){
 			double targetT = request_t+numFramesPreloaded*dt;
 			ofxAvVideoData * nextFrame = video_data_for_time_vlocked(targetT);
-			if( nextFrame->t < request_t || nextFrame->t == -1){
+			if( nextFrame->t < (targetT-dt/2) || nextFrame->t == -1){
 				needsMoreVideo = true;
 			}
 			if( nextFrame->t < request_t && (request_t-nextFrame->t)>4*dt && allowWaitForVideo && audio_stream_idx<0){
