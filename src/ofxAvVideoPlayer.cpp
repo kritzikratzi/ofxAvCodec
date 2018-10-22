@@ -989,9 +989,9 @@ void ofxAvVideoPlayer::update(){
 			if( nextFrame->t < (targetT-dt/2) || nextFrame->t == -1){
 				needsMoreVideo = true;
 			}
-			if( nextFrame->t < request_t && (request_t-nextFrame->t)>4*dt && allowWaitForVideo && audio_stream_idx<0){
-				AVL_MEASURE(cout << "CRAZY DELAY [" << (request_t-nextFrame->t) << "]. request skipframe!" << endl );
-				waitForVideoDelta = request_t-nextFrame->t - 2*dt;
+			if( nextFrame->t < (targetT-dt/2) && (targetT-nextFrame->t)>4*dt && allowWaitForVideo && audio_stream_idx<0){
+				//AVL_MEASURE(cout << "CRAZY DELAY [" << (request_t-nextFrame->t) << "]. request skipframe!" << endl );
+				waitForVideoDelta = targetT-nextFrame->t - 2*dt;
 			}
 			else if(nextFrame->t < request_t && (request_t-nextFrame->t)>2*dt && allowSkipFrames){
 				requestSkipFrame = true;
@@ -1035,6 +1035,7 @@ void ofxAvVideoPlayer::run_decoder(){
 		}
 		
 		if( requestedSeek && next_seekTarget >= 0 ){
+			if(audio_stream_idx<0 && allowWaitForVideo) waitForVideoDelta = 100;
 			requestedSeek = false;
 			//av_seek_frame(fmt_ctx,-1,next_seekTarget,AVSEEK_FLAG_ANY);
 /*			avcodec_flush_buffers(video_context);
@@ -1294,4 +1295,8 @@ AVCodecID ofxAvVideoPlayer::getVideoCodec(){
 	else{
 		return video_context->codec_id;
 	}
+}
+
+bool ofxAvVideoPlayer::hasAudioTrack(){
+	return audio_stream_idx >= 0; 
 }

@@ -183,7 +183,9 @@ public:
     void    draw(float x, float y, float w, float h);
     void    draw(float x, float y);
 
-	AVCodecID getVideoCodec(); 
+	AVCodecID getVideoCodec();
+	
+	bool hasAudioTrack(); 
 	
 private:
 	long long duration;
@@ -265,7 +267,7 @@ private:
 	
 	// currently only active when there is no audio track in the file
 	// very experimental, currently disabled in favor of allowSkipFrames
-	bool allowWaitForVideo = false; // allow frame skipping to catch up (only for the situation where no audio stream, but audio output is setup)
+	bool allowWaitForVideo = true; // allow video waiting
 	float waitForVideoDelta = 0;
 	
 	bool allowSkipFrames = true; // allow video frame skipping to catch up (only for the situation when there is no audio stream, but audio output is setup)
