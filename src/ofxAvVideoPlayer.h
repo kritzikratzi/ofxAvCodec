@@ -159,6 +159,8 @@ public:
 	// \brief returns the video texture
 	ofTexture &getTexture();
 	const ofPixels & getPixels();
+	ofPixels getPixelsForFrameIfAvailable(int frameNum);
+	
 	int getFrameNumber();
 	double getFps(); 
 	string getFile();
@@ -181,7 +183,9 @@ public:
     void    draw(float x, float y, float w, float h);
     void    draw(float x, float y);
 
-	AVCodecID getVideoCodec(); 
+	AVCodecID getVideoCodec();
+	
+	bool hasAudioTrack(); 
 	
 private:
 	long long duration;
@@ -192,7 +196,7 @@ private:
 	bool decode_until( double t, double & decoded_t );
 	bool queue_decoded_video_frame_vlocked();
 	bool queue_decoded_audio_frame_alocked();
-	bool copy_to_pixels_vlocked( ofxAvVideoData * data );
+	bool copy_to_pixels_vlocked( ofPixels & video_pixels, ofxAvVideoData * data );
 	ofxAvVideoData * video_data_for_time_vlocked( double t );
 	
 	bool fileLoaded;
@@ -259,19 +263,21 @@ private:
 	int64_t last_pts;
 	double last_t;
 	int64_t decoder_last_audio_pts; // pts to fix resampling issues with the precise audio position
+	double decoder_last_video_t;
 	
 	// currently only active when there is no audio track in the file
 	// very experimental, currently disabled in favor of allowSkipFrames
-	bool allowWaitForVideo = false; // allow frame skipping to catch up (only for the situation where no audio stream, but audio output is setup)
+	bool allowWaitForVideo = true; // allow video waiting
 	float waitForVideoDelta = 0;
 	
 	bool allowSkipFrames = true; // allow video frame skipping to catch up (only for the situation when there is no audio stream, but audio output is setup)
 	bool requestSkipFrame = false;
 	
 	bool needsMoreVideo;
+	bool want_restart_loop = false; 
 	bool restart_loop;
 	string fileNameAbs;
-	string fileNameBase; 
+	string fileNameBase;
 };
 
 #endif

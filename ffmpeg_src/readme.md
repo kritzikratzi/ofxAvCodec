@@ -4,11 +4,11 @@ Useful infos for compiling FFmpeg/libavcodec
 About 
 ---
 
-This guide explains how to compile the shared libraries needed for ofxAvCodec V0.2. 
+This guide explains how to compile the shared libraries needed for ofxAvCodec V0.3. 
 It features: 
 
 * FFmpeg 3.2.2, compiled as a shared library (LGPL)
-* Cisco openh264 ~jan 2017 (BSD)
+* Minimaly modified Cisco openh264 ~jan 2017 (BSD)
 
 
 I have attempted my best to be as thorough as possible, but that doesn't mean following 
@@ -23,8 +23,8 @@ Links
 
 * The [compilation guide](https://trac.ffmpeg.org/wiki/CompilationGuide) official contains instructions for virtually all platforms. 
 * Shared libraries for Windows: [http://ffmpeg.zeranoe.com/builds/](http://ffmpeg.zeranoe.com/builds/)
-* Git repo with full source: git://source.ffmpeg.org/ffmpeg.git or from [https://github.com/FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg)
-* FFmpeg version used: 3.2.2 [https://github.com/FFmpeg/FFmpeg/commit/148c4fb8d203fdef8589ccef56a995724938918b](https://github.com/FFmpeg/FFmpeg/commit/148c4fb8d203fdef8589ccef56a995724938918b)
+* Git repo with full FFmpeg source: [https://github.com/kritzikratzi/FFmpeg/tree/openh264_hq](https://github.com/kritzikratzi/FFmpeg/tree/openh264_hq) (forked from [https://github.com/FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg) )
+* FFmpeg version used: 3.2.2 with adjustments for higher quality h264 output [https://github.com/kritzikratzi/FFmpeg/commit/de0e273de33f1c213a5060157a176296e2fd2f11](https://github.com/kritzikratzi/FFmpeg/commit/de0e273de33f1c213a5060157a176296e2fd2f11)
 * OpenH264 version used: [https://github.com/cisco/openh264/commit/47aedcf80821507029adf3adbd809aa8ee55f3b0](https://github.com/cisco/openh264/commit/47aedcf80821507029adf3adbd809aa8ee55f3b0)
 * Lots of information about when which codec is built and which configure flags are required: https://www.ffmpeg.org/ffmpeg-codecs.html
 

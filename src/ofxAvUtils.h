@@ -13,6 +13,8 @@
 #include <string>
 #include "ofPath.h"
 
+class AVFormatContext;
+
 class ofxAvUtils{
 public:
 	
@@ -55,6 +57,12 @@ public:
 	// converts polyline result to a mesh (thread safe!)
 	static ofMesh waveformAsMesh( std::string filename, int resolution, float meshWidth = 1, float meshHeight = 1, float fixedDuratioInSeconds = -1 );
 
+    static std::vector<std::shared_ptr<ofPixels>> readVideoFrames( std::string filename, int startFrame = 0, int endFrame = -1 );
+	
+    // type is AVMediaType (possibly renamed to AVMediaType_FF to avoid conflicts with
+    // apple's AVFoundation)
+	static int openCodecContext(int *stream_idx, AVFormatContext *fmt_ctx, int type);
+    
     static std::string errorString(int errNum);
 };
 
