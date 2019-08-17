@@ -12,15 +12,7 @@
 #include <map>
 #include <string>
 #include "ofPath.h"
-extern "C"{
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-#include <libavformat/avformat.h>
-#include <libavutil/channel_layout.h>
-#include <libavutil/samplefmt.h>
-#include <libswresample/swresample.h>
-}
+
 class ofxAvUtils{
 public:
 	
@@ -63,7 +55,7 @@ public:
 	// converts polyline result to a mesh (thread safe!)
 	static ofMesh waveformAsMesh( std::string filename, int resolution, float meshWidth = 1, float meshHeight = 1, float fixedDuratioInSeconds = -1 );
 
-	static string errorString(int errNum); 
+    static std::string errorString(int errNum);
 };
 
 #endif /* defined(__emptyExample__ofxAvUtils__) */

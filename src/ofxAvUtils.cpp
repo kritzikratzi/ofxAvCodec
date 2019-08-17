@@ -9,7 +9,16 @@
 #include "ofxAvUtils.h"
 #include "ofxAvAudioPlayer.h"
 #include "ofMain.h"
-#include <Poco/Path.h>
+
+extern "C"{
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libavformat/avformat.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/samplefmt.h>
+#include <libswresample/swresample.h>
+}
 
 using namespace std;
 
@@ -75,9 +84,9 @@ bool ofxAvUtils::updateMetadata(std::string filename, std::map<std::string, std:
 	AVFormatContext* container = NULL;
 	map<string,string>::iterator it;
 	bool success = false;
-	Poco::Path filepath(fileNameAbs);
-	filepath.setBaseName("." + filepath.getBaseName()+".meta_tmp");
-	string destFile = filepath.toString();
+    std::filesystem::path filepath(fileNameAbs);
+	filepath = filepath.parent_path().append("." + filepath.stem().string()+".meta_tmp" + "." + filepath.extension().string());
+	string destFile = filepath.string();
 	
 	if (avformat_open_input(&container, input_filename, NULL, NULL) < 0) {
 		cerr << ("Could not open file") << endl;

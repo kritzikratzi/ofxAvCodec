@@ -85,7 +85,7 @@ ofxAvVideoPlayer::~ofxAvVideoPlayer(){
 	unload();
 }
 
-static int open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType type){
+static int open_codec_context(int *stream_idx, AVFormatContext *fmt_ctx, enum AVMediaType_FF type){
 	int ret, stream_index;
 	AVStream *st;
 	AVCodecContext *dec_ctx = NULL;
