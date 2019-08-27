@@ -623,7 +623,7 @@ readVideoFramesExitEarly:
 }
 
 int ofxAvUtils::openCodecContext(int *stream_idx, AVFormatContext *fmt_ctx, int type_int){
-    AVMediaType_FF type = (AVMediaType_FF)type_int; 
+    AVMediaType type = (AVMediaType)type_int; 
 	int ret, stream_index;
 	AVStream *st;
 	AVCodecContext *dec_ctx = NULL;
