@@ -142,6 +142,9 @@ public:
 	/// \brief return all metadata. available after load()
 	/// \return a map containing all metadata
 	std::map<std::string,std::string> getMetadata();
+	
+	int getAudioOutNumChannels();
+	int getAudioOutSampleRate();
 
 private:
 	unsigned long long duration;
