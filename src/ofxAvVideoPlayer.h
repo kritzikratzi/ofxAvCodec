@@ -24,24 +24,20 @@
 #include <map>
 #include "ofMain.h"
 
-extern "C"{
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-#include <libavformat/avformat.h>
-#include <libavutil/channel_layout.h>
-#include <libavutil/samplefmt.h>
-#include <libswresample/swresample.h>
-#include <libswscale/swscale.h>
-#include <libavutil/imgutils.h>
-}
-
 #define AVCODEC_MAX_AUDIO_FRAME_SIZE (192000)
 #define AVCODEC_AUDIO_INBUF_SIZE (20480)
 #define AVCODEC_AUDIO_REFILL_THRESH (4096*3)
 
 class ofxAvAudioData;
 class ofxAvVideoData;
+struct AVPacket;
+struct AVFrame;
+struct AVCodecContext;
+struct AVFormatContext;
+struct AVStream;
+struct SwrContext;
+struct SwsContext;
+
 class ofxAvVideoPlayer{
 public:
 	
@@ -183,7 +179,7 @@ public:
     void    draw(float x, float y, float w, float h);
     void    draw(float x, float y);
 
-	AVCodecID getVideoCodec();
+	int getVideoCodec(); // you can cast this back to AVCodecID from avcodec.h
 	
 	bool hasAudioTrack(); 
 	
@@ -208,10 +204,10 @@ private:
 	int64_t millis_to_av_time( long long ms );
 	
 	// i think these could be useful public, rarely, but still ...
-	AVPacket packet;
+	AVPacket * packet;
 	int packet_data_size;
 	int buffer_size;
-	uint8_t inbuf[AVCODEC_AUDIO_INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
+	uint8_t * inbuf;
 	int len;
 	
 	// contains audio data, usually decoded as non-interleaved float array
@@ -221,7 +217,7 @@ private:
 	AVFormatContext* fmt_ctx;
 	AVStream * video_stream;
 	AVStream * audio_stream;
-	AVPixelFormat pix_fmt;
+	int pix_fmt; // type is actually AVPixelFormat
 	int video_stream_idx;
 	int audio_stream_idx; 
 	

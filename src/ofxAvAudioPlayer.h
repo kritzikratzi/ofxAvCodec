@@ -15,16 +15,6 @@
 #include <math.h>
 #include <map>
 
-extern "C"{
-	#include <libavcodec/avcodec.h>
-	#include <libavformat/avformat.h>
-	#include <libavutil/avutil.h>
-	#include <libavformat/avformat.h>
-	#include <libavutil/channel_layout.h>
-	#include <libavutil/samplefmt.h>
-	#include <libswresample/swresample.h>
-}
-
 //TODO: should/can we move this to cpp file?
 //ok, be careful with these.
 //with flac files written by audacity it's actually quite easy to cause serious read troubles
@@ -32,6 +22,12 @@ extern "C"{
 #define AVCODEC_MAX_AUDIO_FRAME_SIZE (192000)
 #define AVCODEC_AUDIO_INBUF_SIZE (20480)
 #define AVCODEC_AUDIO_REFILL_THRESH (4096*3)
+
+struct AVPacket;
+struct AVFrame;
+struct AVCodecContext;
+struct AVFormatContext;
+struct SwrContext;
 
 class ofxAvAudioPlayer{
 public: 
@@ -156,10 +152,10 @@ private:
 	int64_t millis_to_av_time( unsigned long long ms );
 	
 	// i think these could be useful public, rarely, but still ...
-	AVPacket packet;
+	AVPacket * packet;
 	int packet_data_size;
 	int buffer_size; 
-	uint8_t inbuf[AVCODEC_AUDIO_INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
+	uint8_t * inbuf;
 	int len;
 	int audio_stream_id;
 	

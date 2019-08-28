@@ -14,6 +14,15 @@
 #include "ofMain.h"
 #include "ofxAvUtils.h"
 extern "C"{
+	#include <libavcodec/avcodec.h>
+	#include <libavformat/avformat.h>
+	#include <libavutil/avutil.h>
+	#include <libavformat/avformat.h>
+	#include <libavutil/channel_layout.h>
+	#include <libavutil/samplefmt.h>
+	#include <libswresample/swresample.h>
+	#include <libswscale/swscale.h>
+	#include <libavutil/imgutils.h>
 	#include <libavutil/opt.h>
 }
 
@@ -74,15 +83,19 @@ ofxAvVideoPlayer::ofxAvVideoPlayer(){
 	audio_stream = NULL;
 	video_stream = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
+	inbuf = new uint8_t[AVCODEC_AUDIO_INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
+	packet = new AVPacket();
 	swr_context = NULL;
 	sws_context = NULL;
-	av_init_packet(&packet);
+	av_init_packet(packet);
 	unload();
 	
 }
 
 ofxAvVideoPlayer::~ofxAvVideoPlayer(){
 	unload();
+	delete [] inbuf;
+	delete packet;
 }
 
 bool ofxAvVideoPlayer::load(string fileName, bool stream){
@@ -118,7 +131,7 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 		// we will use the sws resampling context to fill out the data!
 		width = video_context->width;
 		height = video_context->height;
-		pix_fmt = AV_PIX_FMT_RGB24;
+		pix_fmt = (int)AV_PIX_FMT_RGB24;
 
 		// allow skip frames only for prores, which seems to decode particularly slow
 		allowSkipFrames = video_context->codec_id == AV_CODEC_ID_PRORES;
@@ -180,11 +193,11 @@ bool ofxAvVideoPlayer::load(string fileName, bool stream){
 
 	// from here on it's mostly following
 	// https://github.com/FFmpeg/FFmpeg/blob/master/doc/examples/decoding_encoding.c
-	//packet.data = inbuf;
-	//packet.size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
-	av_init_packet(&packet);
-	packet.data = NULL;
-	packet.size = 0;
+	//packet->data = inbuf;
+	//packet->size = fread(inbuf, 1, AVCODEC_AUDIO_INBUF_SIZE, f);
+	av_init_packet(packet);
+	packet->data = NULL;
+	packet->size = 0;
 	
 	swr_context = NULL;
 	sws_context = NULL;
@@ -277,7 +290,7 @@ void ofxAvVideoPlayer::unload(){
 	video_stream_idx = -1;
 	audio_stream_idx = -1;
 	
-	av_free_packet(&packet);
+	av_free_packet(packet);
 	
 	if( decoded_frame ){
 		//TODO: do we really need the unref here?
@@ -406,8 +419,8 @@ ofxAvVideoPlayer::AudioResult ofxAvVideoPlayer::audioOut(float *output, int buff
 
 // this is _mostly_ only called from the special happy thread!
 bool ofxAvVideoPlayer::decode_next_frame(){
-	av_free_packet(&packet);
-	int res = av_read_frame(fmt_ctx, &packet);
+	av_free_packet(packet);
+	int res = av_read_frame(fmt_ctx, packet);
 	bool didRead = res >= 0;
 
 	if( didRead ){
@@ -425,7 +438,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		// ----------------------------------------------
 		// Handle audio stream
 		// ----------------------------------------------
-		if( packet.stream_index == audio_stream_idx && output_setup_called && audio_stream_idx >= 0 ){
+		if( packet->stream_index == audio_stream_idx && output_setup_called && audio_stream_idx >= 0 ){
 			decode_audio_frame(got_frame);
 			
 			return true;
@@ -433,7 +446,7 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 		// ----------------------------------------------
 		// Handle video stream
 		// ----------------------------------------------
-		else if(packet.stream_index == video_stream_idx ){
+		else if(packet->stream_index == video_stream_idx ){
 			decode_video_frame(got_frame);
 			
 			return true;
@@ -448,8 +461,8 @@ bool ofxAvVideoPlayer::decode_next_frame(){
 	else{
 		// no data read...
 		// there might be some leftover frames in the buffer!
-		packet.data = NULL;
-		packet.size = 0;
+		packet->data = NULL;
+		packet->size = 0;
 		int got_frame;
 		if( decode_video_frame(got_frame,false) || got_frame ){
 			// yep, we got another.
@@ -486,7 +499,7 @@ bool ofxAvVideoPlayer::decode_video_frame( int & got_frame, bool maySkip ){
 	
 	/* decode video frame */
 	AVL_MEASURE(uint64_t decode_start = ofGetSystemTime();)
-	int res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
+	int res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, packet);
 	AVL_MEASURE(uint64_t decode_end = ofGetSystemTime();)
 	AVL_MEASURE(cout << "decode_2 = " << (decode_end-decode_start)/1000.0 << endl;)
 	if (res < 0) {
@@ -509,7 +522,7 @@ bool ofxAvVideoPlayer::decode_video_frame( int & got_frame, bool maySkip ){
 }
 
 bool ofxAvVideoPlayer::decode_audio_frame( int & got_frame ){
-	len = avcodec_decode_audio4(audio_context, decoded_frame, &got_frame, &packet);
+	len = avcodec_decode_audio4(audio_context, decoded_frame, &got_frame, packet);
 	if (len < 0) {
 		// no data
 		return false;
@@ -520,8 +533,8 @@ bool ofxAvVideoPlayer::decode_audio_frame( int & got_frame ){
 		queue_decoded_audio_frame_alocked();
 	}
 	
-	packet.size -= len;
-	packet.data += len;
+	packet->size -= len;
+	packet->data += len;
 	return true;
 }
 
@@ -560,7 +573,7 @@ bool ofxAvVideoPlayer::queue_decoded_audio_frame_alocked(){
 										(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
 	data->decoded_buffer_len = samples_converted*output_num_channels;
 	data->decoded_buffer_pos = 0;
-	if(packet.pts != AV_NOPTS_VALUE) {
+	if(packet->pts != AV_NOPTS_VALUE) {
 		if(decoder_last_audio_pts < 0 ){
 			decoder_last_audio_pts = (decoded_frame->pkt_pts)*output_sample_rate*av_q2d(audio_stream->time_base);
 		}
@@ -584,16 +597,16 @@ bool ofxAvVideoPlayer::decode_until( double t, double & decoded_t ){
 	int lookForDelayedPackets = 20;
 	
 decode_another:
-	av_free_packet(&packet);
-	int res = av_read_frame(fmt_ctx, &packet);
+	av_free_packet(packet);
+	int res = av_read_frame(fmt_ctx, packet);
 	bool didRead = res >= 0;
 	
 	if( !didRead && lookForDelayedPackets > 0 ){
 		// no data read...
 		// are frames hiding in the pipe?
-		packet.data = NULL;
-		packet.size = 0;
-		packet.stream_index = video_stream_idx;
+		packet->data = NULL;
+		packet->size = 0;
+		packet->stream_index = video_stream_idx;
 		packet_data_size = 0;
 		lookForDelayedPackets --;
 		didRead = true; 
@@ -618,15 +631,15 @@ decode_another:
 		// ----------------------------------------------
 		// Handle audio stream
 		// ----------------------------------------------
-		if( packet.stream_index == audio_stream_idx ){
+		if( packet->stream_index == audio_stream_idx ){
 			goto decode_another;
 		}
 		// ----------------------------------------------
 		// Handle video stream
 		// ----------------------------------------------
-		else if(packet.stream_index == video_stream_idx ){
+		else if(packet->stream_index == video_stream_idx ){
 			/* decode video frame */
-			res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, &packet);
+			res = avcodec_decode_video2(video_context, decoded_frame, &got_frame, packet);
 			if (res < 0) {
 				fprintf(stderr, "Error decoding video frame (%s)\n", ofxAvUtils::errorString(res).c_str());
 				goto decode_another;
@@ -672,7 +685,7 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 				"pixel format of the input video changed:\n"
 				"old: width = %d, height = %d, format = %s\n"
 				"new: width = %d, height = %d, format = %s\n",
-				width, height, av_get_pix_fmt_name(pix_fmt),
+				width, height, av_get_pix_fmt_name((AVPixelFormat)pix_fmt),
 				decoded_frame->width, decoded_frame->height,
 				av_get_pix_fmt_name((AVPixelFormat)decoded_frame->format));
 		return -1;
@@ -688,7 +701,7 @@ bool ofxAvVideoPlayer::queue_decoded_video_frame_vlocked(){
 	AVL_MEASURE(cout << "\tdata->pts = " << decoded_frame->pkt_pts << endl);
 	AVL_MEASURE(uint64_t cp_end = ofGetSystemTime();)
 	AVL_MEASURE(cout << "cp = " << (cp_end-cp_start)/1000.0 << endl;)
-	//cout << packet.pts << "\t" << packet.dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
+	//cout << packet->pts << "\t" << packet->dts <<"\t" << video_stream->first_dts << "\t" <<  decoded_frame->pkt_pts << "\t" << decoded_frame->pkt_dts << endl;
 	data->pts = decoded_frame->pkt_pts;
 	data->t = av_q2d(video_stream->time_base)*decoded_frame->pkt_pts;
 	decoder_last_video_t = data->t;
@@ -1288,12 +1301,12 @@ void ofxAvVideoPlayer::draw(float _x, float _y) {
     draw(_x, _y, getWidth(), getHeight());
 }
 
-AVCodecID ofxAvVideoPlayer::getVideoCodec(){
+int ofxAvVideoPlayer::getVideoCodec(){
 	if(!fileLoaded || wantsUnload || video_stream_idx<0 || !video_context){
-		return AV_CODEC_ID_NONE;
+		return (int)AV_CODEC_ID_NONE;
 	}
 	else{
-		return video_context->codec_id;
+		return (int)(video_context->codec_id);
 	}
 }
 
