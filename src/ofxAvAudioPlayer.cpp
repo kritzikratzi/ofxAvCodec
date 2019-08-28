@@ -401,6 +401,15 @@ bool ofxAvAudioPlayer::getIsPlaying(){
 	return isPlaying; 
 }
 
+int ofxAvAudioPlayer::getAudioOutNumChannels(){
+	return output_num_channels;
+}
+
+int ofxAvAudioPlayer::getAudioOutSampleRate(){
+	return output_sample_rate; 
+}
+
+
 string ofxAvAudioPlayer::getMetadata( string key ){
 	if( container != NULL ){
 		AVDictionaryEntry * entry = av_dict_get(container->metadata, key.c_str(), NULL, 0);
