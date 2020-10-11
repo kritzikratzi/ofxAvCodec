@@ -195,60 +195,54 @@ Great! Now we do the same thing for 32 bit libs:
  	# 3. Build ffmpeg
  	./configure --toolchain=msvc --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/dist32
 
-Compiling for Linux using Ubuntu [outdated]
----
-
-This is directly taken from the [https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu](FFmpeg guide for Ubuntu). The following steps assume a 64bit Ubuntu installation. 
-
-
-	sudo apt-get update
-	
-	sudo apt-get -y --force-yes install git autoconf automake build-essential libass-dev \
-		libfreetype6-dev libsdl1.2-dev libtheora-dev libtool libva-dev libvdpau-dev\
-		libvorbis-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev pkg-config \
-		texi2html zlib1g-dev gcc-multilib libc6-i386
-	
-	git clone git://source.ffmpeg.org/ffmpeg.git
-	cd ffmpeg
-	# check out specific revision if you want
-	./configure  --prefix=`pwd`/dist/x86_64/ --enable-pic --enable-shared
-	make && make install
-	
-	# now cross compile for 32 bit
-	make clean 
-	./configure  --prefix=`pwd`/dist/i386/ --enable-pic --enable-shared --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --arch=i386
-	make && make install
-	
-
-Good job! If all goes well you have two directories: `dist/x86_64` and `dist/i386`
 
 
 Compiling on Ubuntu with GCC [new, incomplete]
+---
 
 	# First install the necessary dependencies and sources
-	sudo apt-get install nasm yasm pkg-config gcc-multilib
+	sudo apt-get install nasm yasm pkg-config gcc-multilib g++-multilib chrpath rsync
 	cd ffmpeg_src
 	git clone https://github.com/cisco/openh264.git
-
+	cd openh264
+	git checkout 47aedcf80821507029adf3adbd809aa8ee55f3b0
 
 	# Build openh264 32bit and 64bit
-	cd openh264
- 	make ARCH=x86_64
+ 	make -j8 ARCH=x86_64
  	make install ARCH=x86_64 PREFIX=`pwd`/../libs_64
 	make clean
- 	make ARCH=x86
+ 	make -j8 ARCH=x86
  	make install ARCH=x86 PREFIX=`pwd`/../libs_32
 
 
 	# On to the fun part, let's build ffmpeg fpr 32bit and 64 bit
+	cd ..
+	git clone https://github.com/kritzikratzi/FFmpeg
+	cd FFmpeg
+	git checkout de0e273de33f1c213a5060157a176296e2fd2f11
 
-	(CFLAGS=-m64; LDFLAGS=-m64; PKG_CONFIG_PATH=`pwd`/../libs_64/lib/pkgconfig ./configure --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/../libs_64) 
-	make -j 8 && make install
+	PKG_CONFIG_PATH=`pwd`/../libs_64/lib/pkgconfig ./configure --enable-shared --disable-static --enable-libopenh264 --disable-indevs --extra-cflags="-m64" --extra-cxxflags="-m64" --extra-ldflags="-m64" --enable-rpath --arch=x86_64 --prefix=`pwd`/../libs_64
+	make -j8 && make install
+	cd ../libs_64/lib
+	chrpath -r '$ORIGIN' *.so
+	cd ../../
+	mkdir -p ../libs/avcodec/lib/linux64
+	rsync -am --include='*.so' --include='*.so.*' --exclude='*' "libs_64/lib/" "../libs/avcodec/lib/linux64/"
+	cd FFmpeg
 
 	make clean
 
-	(CFLAGS=-m32; LDFLAGS=-m32; PKG_CONFIG_PATH=`pwd`/../libs_32/lib/pkgconfig ./configure --enable-shared --disable-static --enable-libopenh264 --disable-indevs --prefix=`pwd`/../libs_32) 
-	make -j 8 && make install
+	PKG_CONFIG_PATH=`pwd`/../libs_32/lib/pkgconfig ./configure --enable-shared --disable-static --enable-libopenh264 --disable-indevs --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --enable-rpath --arch=i386 --prefix=`pwd`/../libs_32
+	make -j8 && make install
+	cd ../libs_32/lib
+	chrpath -r '$ORIGIN' *.so
+	cd ../../
+	mkdir -p ../libs/avcodec/lib/linux32
+	rsync -am --include='*.so' --include='*.so.*' --exclude='*' "libs_64/lib/" "../libs/avcodec/lib/linux32/";
+	cd FFmpeg
 
+	# you should be in ffmpeg_src now
+	mkdir -p 
 
-	already not bad, probably rpath issues to be fixed. 
+Wonderful! Now copy the stuff to `addons/ofxAvCodec/libs/avcodec/lib/linux` and `addons/ofxAvCodec/libs/avcodec/lib/linux64`. Skip the `pkg-config` folder and all `.a` files!
+

@@ -60,14 +60,12 @@ common:
 	# a specific platform
 	# ADDON_LIBS_EXCLUDE =
 linux:
-	ADDON_LDFLAGS = -lavcodec -lavutil -lavformat -lswresample -lswscale
-	ADDON_SOURCES_EXCLUDE = libs/%	
-	ADDON_INCLUDES_EXCLUDE = libs/%	
+	ADDON_INCLUDES = libs/avcodec/include
+	ADDON_INCLUDES += src
 	
 linux64:
-	ADDON_LDFLAGS = -lavcodec -lavutil -lavformat -lswresample -lswscale	
-	ADDON_SOURCES_EXCLUDE = libs/%
-	ADDON_INCLUDES_EXCLUDE = libs/%		
+	ADDON_INCLUDES = libs/avcodec/include
+	ADDON_INCLUDES += src
 	
 osx:
 	ADDON_INCLUDES = libs/avcodec/include
