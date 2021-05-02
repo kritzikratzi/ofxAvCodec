@@ -18,6 +18,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+//hansi: patch to fix the (imho very silly) time.h naming conflict.
+#ifdef __APPLE__
+#include </Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/time.h>
+#endif
+
 #ifndef AVUTIL_TIME_H
 #define AVUTIL_TIME_H
 

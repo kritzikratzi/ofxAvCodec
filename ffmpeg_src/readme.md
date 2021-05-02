@@ -38,48 +38,63 @@ Command Line
 
 Compiling on Mac OS
 ---
+
 The to create a universal binary run the following commands in the ffmpeg source directory: 
 
 	# 1. Prepare openh264
+	mkdir dist
 	cd $openh264_src_dir
 	sudo mv /usr/bin/nasm /usr/bin/nasm-osx
 	brew install nasm
 	
 	# Let's make a universal lib (we need it later!)
 	make clean && make OS=darwin ARCH=x86_64
-	mkdir dist
-	cp libopenh264.dylib dist/libopenh264-64bit.dylib
+	cp libopenh264.dylib dist/libopenh264-x86_64.dylib
+
 	make clean && make OS=darwin ARCH=i386
-	cp libopenh264.dylib dist/libopenh264-32bit.dylib
+	cp libopenh264.dylib dist/libopenh264-i386.dylib
+
+	make clean && make OS=darwin ARCH=arm64
+	cp libopenh264.dylib dist/libopenh264-arm64.dylib
+
 	# create a fat lib
-	lipo dist/libopenh264-32bit.dylib dist/libopenh264-64bit.dylib -output dist/libopenh264.dylib -create
+	lipo dist/libopenh264-arm64.dylib dist/libopenh264-i386.dylib dist/libopenh264-x86_64.dylib -output dist/libopenh264.dylib -create
 	# make install path relative
 	install_name_tool -id @executable_path/libopenh264.dylib libopenh264.dylib
 	
-	# 2. Build 64 bit
+	# 2a Build 64bit arm
+	cd $openh264_src_dir
+	make OS=darwin ARCH=arm64 install
+	cd $ffmpeg_src_dir
+	make clean
+	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --enable-libopenh264 --arch=arm64
+	make && make install
+	mv @executable_path libs_arm64
+	
+	# 2b Build 64bit intel
 	cd $openh264_src_dir
 	make OS=darwin ARCH=x86_64 install
 	cd $ffmpeg_src_dir
 	make clean
-	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --enable-libopenh264
+	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --enable-libopenh264 --arch=x86_64
 	make && make install
-	mv @executable_path libs_64
+	mv @executable_path libs_x86_64
 	
-	# 3. Build 32 bit
+	# 2c. Build 32 bit intel
 	cd $openh264_src_dir
 	make OS=darwin ARCH=i386 clean install
 	make clean
 	./configure  --prefix=`pwd`/dist/ --enable-pic --enable-shared  --shlibdir="@executable_path" --shlibdir="@executable_path" --disable-indevs --extra-cflags="-m32" --extra-cxxflags="-m32" --extra-ldflags="-m32" --enable-libopenh264 --arch=i386
 	make && make install
-	mv @executable_path libs_32
+	mv @executable_path libs_i386
 
-	# 4. Combine dylibs into fat libs and copy over symlinks
+	# 3. Combine dylibs into fat libs and copy over symlinks
 	mkdir libs
-	for file in libs_64/*.dylib
+	for file in libs_x86_64/*.dylib
 	do
 		f=$(basename $file)
 		if [ -h $file ];then;cp -av $file libs
-		else;lipo libs_32/$f $file -output libs/$f -create
+		else;lipo libs_i386/$f libs_arm64/$f $file -output libs/$f -create
 		fi
 	done
 	
@@ -97,7 +112,7 @@ The to create a universal binary run the following commands in the ffmpeg source
 	done
 	
 	# 5. Clean up a bit to be ready for the next build ... 
-	rm -rf libs_32 libs_64
+	rm -rf libs_i386 libs_x86_64 libs_arm64
 	mv libs libs-$(git rev-parse HEAD)
 
 Done! Now copy the include dir to ofxAvCodec/libs/avcodec/include and the libs dir to ofxAvCodec/libs/avcodec/lib/osx
