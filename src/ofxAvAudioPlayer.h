@@ -158,7 +158,6 @@ private:
 	AVPacket * packet;
 	int packet_data_size;
 	int buffer_size; 
-	uint8_t * inbuf;
 	int len;
 	int audio_stream_id;
 	
@@ -175,11 +174,16 @@ private:
 	int64_t next_seekTarget;
 	
 	// contains audio data, always in interleaved float format
-	int decoded_buffer_pos;
-	int decoded_buffer_len;
-	float decoded_buffer[AVCODEC_MAX_AUDIO_FRAME_SIZE];
 	
 	bool output_config_changed;
+	
+	struct Data{
+		int decoded_buffer_pos;
+		int decoded_buffer_len;
+		float decoded_buffer[AVCODEC_MAX_AUDIO_FRAME_SIZE];
+	};
+	
+	std::unique_ptr<Data> data;
 };
 
 #endif

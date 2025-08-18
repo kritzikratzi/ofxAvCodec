@@ -28,7 +28,10 @@ using namespace std;
 #define die(msg) { unload(); cerr << msg << endl; return false; }
 
 ofxAvAudioPlayer::ofxAvAudioPlayer(){
-	ofxAvUtils::init(); 
+	ofxAvUtils::init();
+	
+	data = std::make_unique<ofxAvAudioPlayer::Data>();
+	
 	// default audio settings
 	output_channel_layout = av_get_default_channel_layout(2);
 	output_sample_rate = 44100;
@@ -43,7 +46,6 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 	decoded_frame = NULL;
 	codec_context = NULL;
 	buffer_size = AVCODEC_MAX_AUDIO_FRAME_SIZE;
-	inbuf = new uint8_t[AVCODEC_AUDIO_INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 	packet = new AVPacket();
 	swr_context = NULL;
 	av_init_packet(packet);
@@ -53,7 +55,6 @@ ofxAvAudioPlayer::ofxAvAudioPlayer(){
 
 ofxAvAudioPlayer::~ofxAvAudioPlayer(){
 	unload();
-	delete [] inbuf; 
 	delete packet;
 }
 
@@ -155,8 +156,8 @@ void ofxAvAudioPlayer::unload(){
 	fileLoaded = false;
 	isPlaying = false;
 	packet_data_size = 0;
-	decoded_buffer_pos = 0;
-	decoded_buffer_len = 0;
+	data->decoded_buffer_pos = 0;
+	data->decoded_buffer_len = 0;
 	next_seekTarget = -1;
 
 	av_free_packet(packet);
@@ -210,12 +211,12 @@ int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 		max_read_packets --;
 		
 		int missing_samples = bufferSize*nChannels - num_samples_read;
-		int available_samples = decoded_buffer_len - decoded_buffer_pos;
+		int available_samples = data->decoded_buffer_len - data->decoded_buffer_pos;
 		if( missing_samples > 0 && available_samples > 0 ){
 			int samples = min( missing_samples, available_samples );
 			
 			if( volume != 0 ){
-				memcpy(output+num_samples_read, decoded_buffer+decoded_buffer_pos, samples*sizeof(float) );
+				memcpy(output+num_samples_read, data->decoded_buffer+data->decoded_buffer_pos, samples*sizeof(float) );
 			}
 			
 			if( volume != 1 && volume != 0 ){
@@ -224,7 +225,7 @@ int ofxAvAudioPlayer::audioOut(float *output, int bufferSize, int nChannels){
 				}
 			}
 			
-			decoded_buffer_pos += samples;
+			data->decoded_buffer_pos += samples;
 			num_samples_read += samples;
 		}
 		
@@ -297,12 +298,12 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 			/* if a frame has been decoded, resample to desired rate */
 			int samples_per_channel = AVCODEC_MAX_AUDIO_FRAME_SIZE/output_num_channels;
 			//samples_per_channel = 512;
-			uint8_t * out = (uint8_t*)decoded_buffer;
+			uint8_t * out = (uint8_t*)data->decoded_buffer;
 			int samples_converted = swr_convert(swr_context,
 												(uint8_t**)&out, samples_per_channel,
 												(const uint8_t**)decoded_frame->extended_data, decoded_frame->nb_samples);
-			decoded_buffer_len = samples_converted*output_num_channels;
-			decoded_buffer_pos = 0;
+			data->decoded_buffer_len = samples_converted*output_num_channels;
+			data->decoded_buffer_pos = 0;
 		}
 
 		packet->size -= len;
@@ -315,8 +316,8 @@ bool ofxAvAudioPlayer::decode_next_frame(){
 	else{
 		// no data read...
 		packet_data_size = 0;
-		decoded_buffer_len = 0;
-		decoded_buffer_pos = 0;
+		data->decoded_buffer_len = 0;
+		data->decoded_buffer_pos = 0;
 		if( isLooping ){
 			avformat_seek_file(container,audio_stream_id,0,0,0,AVSEEK_FLAG_ANY);
 			avcodec_flush_buffers(codec_context);
